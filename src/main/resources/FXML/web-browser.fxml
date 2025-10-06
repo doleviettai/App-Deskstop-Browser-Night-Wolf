@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane prefHeight="600.0" prefWidth="800.0" stylesheets="@../CSS/dasboardMiniMark.css" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.client.ClientController">
+
+    <!-- Đặt TabPane vào center để chiếm toàn bộ -->
+    <center>
+        <TabPane fx:id="tabPane" styleClass="newtab" stylesheets="@../CSS/dasboardMiniMark.css" tabClosingPolicy="ALL_TABS">
+            <!-- Tab "+" luôn ở cuối -->
+            <tabs>
+                <Tab fx:id="addTab" closable="false" text="+" />
+            </tabs>
+        </TabPane>
+    </center>
+</BorderPane>

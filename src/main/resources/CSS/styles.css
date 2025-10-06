@@ -1,0 +1,51 @@
+.list_icon{
+   -fx-font-size:24px;
+}
+/* styles.css */
+.list-cell {
+    -fx-background-color: skyblue;
+    -fx-text-fill: blue;
+    -fx-border-color: black;  /* Thiết lập màu đường viền */
+    -fx-border-width: 1px;    /* Độ dày đường viền */
+    -fx-alignment: center;    /* Căn giữa nội dung */
+}
+
+.list-cell:hover {
+    -fx-background-color: grey;
+}
+
+.list-cell:selected {
+    -fx-background-color: yellow; /* Màu khi được chọn */
+    -fx-text-fill: black;         /* Màu chữ khi được chọn */
+}
+.nhapchuotbutton{
+     -fx-background-color:skyblue;
+     -fx-text-fill:grey;
+     -fx-background-radius:5px;
+     -fx-border-radius:5px;
+     -fx-border-width:1px;
+     -fx-border-color:black;
+}
+.nhapchuotbutton:hover{
+-fx-background-color:blue;
+-fx-text-fill:white;
+-fx-border-color:yellow;
+}
+.nhapchuotbutton:pressed{
+-fx-background-color:rgb(255,148,114);
+-fx-text-fill:black;
+}
+
+.textField_mess{
+     -fx-text-fill:black;
+     -fx-background-radius:5px;
+     -fx-border-radius:5px;
+     -fx-border-width:1px;
+     -fx-border-color:black;
+}
+.textField_mess:hover{
+     -fx-background-radius:5px;
+     -fx-border-radius:5px;
+     -fx-border-width:1px;
+     -fx-border-color:yellow;
+}

@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.text.Font?>
+
+<StackPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.client.LoginController">
+    <children>
+        <AnchorPane fx:id="login" onMouseDragged="#onMouseDragged" onMousePressed="#onMousePressed" prefHeight="400.0" prefWidth="600.0">
+            <children>
+                <AnchorPane fx:id="register_form" prefHeight="400.0" prefWidth="300.0" styleClass="form_right" stylesheets="@../CSS/login.css">
+                    <children>
+                        <ImageView fitHeight="42.0" fitWidth="59.0" layoutX="47.0" layoutY="25.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../Image/user.png" />
+                            </image>
+                        </ImageView>
+                        <Label alignment="CENTER" layoutX="102.0" layoutY="29.0" prefHeight="34.0" prefWidth="175.0" styleClass="head_label" stylesheets="@../CSS/login.css" text="register account">
+                            <font>
+                                <Font name="System Bold Italic" size="18.0" />
+                            </font>
+                        </Label>
+                        <TextField fx:id="username_res" layoutX="36.0" layoutY="96.0" prefHeight="26.0" prefWidth="232.0" promptText="đăng nhập" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <TextField fx:id="password_res" layoutX="36.0" layoutY="200.0" prefHeight="26.0" prefWidth="232.0" promptText="mật khẩu" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <Label layoutX="36.0" layoutY="71.0" prefHeight="18.0" prefWidth="122.0" text="Tên tài khoản">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Label layoutX="36.0" layoutY="175.0" prefHeight="18.0" prefWidth="122.0" text="Password">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Button fx:id="register_btn" layoutX="34.0" layoutY="354.0" mnemonicParsing="false" onAction="#regBtn" prefHeight="31.0" prefWidth="232.0" styleClass="login_btn" stylesheets="@../CSS/login.css" text="Xác nhận đăng kí">
+                            <font>
+                                <Font name="System Bold Italic" size="14.0" />
+                            </font>
+                        </Button>
+                        <TextField fx:id="phonenumber_res" layoutX="34.0" layoutY="254.0" prefHeight="26.0" prefWidth="232.0" promptText="số điện thoại" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <Label layoutX="36.0" layoutY="229.0" prefHeight="18.0" prefWidth="122.0" text="Phone number">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <PasswordField layoutX="34.0" layoutY="317.0" prefHeight="26.0" prefWidth="232.0" promptText="xác nhận lại mật khẩu" styleClass="textfield" stylesheets="@../CSS/login.css" fx:id="xacnhanmatkhau_res" />
+                        <Label layoutX="34.0" layoutY="291.0" prefHeight="26.0" prefWidth="155.0" text="Confirm password">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                  <TextField fx:id="firstname_res" layoutX="34.0" layoutY="148.0" prefHeight="25.0" prefWidth="110.0" promptText="họ" styleClass="textfield" />
+                  <TextField fx:id="lastname_res" layoutX="158.0" layoutY="148.0" prefHeight="25.0" prefWidth="110.0" promptText="tên" styleClass="textfield" />
+                  <Label layoutX="32.0" layoutY="125.0" prefHeight="25.0" prefWidth="80.0" text="Họ">
+                     <font>
+                        <Font name="System Bold" size="16.0" />
+                     </font>
+                  </Label>
+                  <Label layoutX="158.0" layoutY="125.0" prefHeight="25.0" prefWidth="80.0" text="Tên">
+                     <font>
+                        <Font name="System Bold" size="16.0" />
+                     </font>
+                  </Label>
+                    </children>
+                </AnchorPane>
+                <AnchorPane fx:id="login_form" layoutX="300.0" prefHeight="400.0" prefWidth="300.0" styleClass="form_right" stylesheets="@../CSS/login.css">
+                    <children>
+                        <ImageView fitHeight="59.0" fitWidth="80.0" layoutX="128.0" layoutY="14.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../Image/user.png" />
+                            </image>
+                        </ImageView>
+                        <Label alignment="CENTER" layoutX="62.0" layoutY="94.0" prefHeight="34.0" prefWidth="175.0" styleClass="head_label" stylesheets="@../CSS/login.css" text="Login account">
+                            <font>
+                                <Font name="System Bold Italic" size="18.0" />
+                            </font>
+                        </Label>
+                        <TextField fx:id="username" layoutX="35.0" layoutY="174.0" prefHeight="26.0" prefWidth="232.0" promptText="đăng nhập" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <TextField fx:id="password_show" layoutX="36.0" layoutY="254.0" prefHeight="26.0" prefWidth="232.0" styleClass="textfield" stylesheets="@../CSS/login.css" visible="false" />
+                        <Label layoutX="35.0" layoutY="147.0" prefHeight="18.0" prefWidth="122.0" text="Username">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Label layoutX="36.0" layoutY="228.0" prefHeight="18.0" prefWidth="122.0" text="Password">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Button fx:id="login_btn" layoutX="164.0" layoutY="310.0" mnemonicParsing="false" onAction="#loginBtn" prefHeight="26.0" prefWidth="103.0" styleClass="login_btn" stylesheets="@../CSS/login.css" text="Đăng nhập">
+                            <font>
+                                <Font name="System Bold Italic" size="14.0" />
+                            </font>
+                        </Button>
+                        <Hyperlink fx:id="forgot_password" layoutX="177.0" layoutY="352.0" onAction="#switchHyper" prefHeight="24.0" prefWidth="110.0" text="Tìm lại mật khẩu">
+                            <font>
+                                <Font size="13.0" />
+                            </font>
+                        </Hyperlink>
+                        <Label layoutX="14.0" layoutY="355.0" prefHeight="20.0" prefWidth="163.0" text="Bạn đã quên mật khẩu ?">
+                            <font>
+                                <Font size="14.0" />
+                            </font>
+                        </Label>
+                        <PasswordField fx:id="password" layoutX="36.0" layoutY="254.0" prefHeight="26.0" prefWidth="232.0" promptText="mật khẩu" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <CheckBox fx:id="check" alignment="CENTER" contentDisplay="CENTER" layoutX="36.0" layoutY="292.0" mnemonicParsing="false" onAction="#showpass" prefHeight="18.0" prefWidth="80.0" text="show pass" />
+                    </children>
+                </AnchorPane>
+                <AnchorPane fx:id="forgotpassword_form" prefHeight="400.0" prefWidth="300.0" styleClass="form_right" stylesheets="@../CSS/login.css">
+                    <children>
+                        <ImageView fitHeight="52.0" fitWidth="70.0" layoutX="34.0" layoutY="28.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../Image/setting.png" />
+                            </image>
+                        </ImageView>
+                        <Label alignment="CENTER" layoutX="101.0" layoutY="37.0" prefHeight="34.0" prefWidth="175.0" styleClass="head_label" stylesheets="@../CSS/login.css" text="Forgot password">
+                            <font>
+                                <Font name="System Bold Italic" size="18.0" />
+                            </font>
+                        </Label>
+                        <Button fx:id="forgot_kiemtra" layoutX="111.0" layoutY="253.0" mnemonicParsing="false" onAction="#forgortXacthuc" prefHeight="31.0" prefWidth="155.0" styleClass="login_btn" stylesheets="@../CSS/login.css" text="Kiểm tra xác nhận">
+                            <font>
+                                <Font name="System Bold Italic" size="14.0" />
+                            </font>
+                        </Button>
+                        <TextField fx:id="phonenumber_kiemtra" layoutX="34.0" layoutY="213.0" prefHeight="26.0" prefWidth="232.0" promptText="số điện thoại" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <Label layoutX="34.0" layoutY="103.0" prefHeight="18.0" prefWidth="122.0">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Label layoutX="34.0" layoutY="187.0" prefHeight="26.0" prefWidth="175.0" text="Nhập lại số điện thoại">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Label layoutX="34.0" layoutY="120.0" prefHeight="26.0" prefWidth="134.0" text="Tài Khoản">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <TextField fx:id="username_kiemtra" layoutX="34.0" layoutY="146.0" minHeight="0.0" prefHeight="26.0" prefWidth="232.0" promptText="tên tài khoản" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <Label layoutX="34.0" layoutY="326.0" prefHeight="24.0" prefWidth="232.0" text="Nếu bạn lỡ quên tài khoản và số điện thoại" textFill="WHITE" />
+                        <Label layoutX="34.0" layoutY="345.0" prefHeight="18.0" prefWidth="122.0" text="FaceBook liên hệ :" textFill="#fcfcfc" />
+                        <Hyperlink layoutX="168.0" layoutY="342.0" onAction="#openlink" prefHeight="24.0" prefWidth="103.0" text="Đỗ Tài" textFill="#00eeff" />
+                        <Label layoutX="34.0" layoutY="363.0" prefHeight="18.0" prefWidth="134.0" text="Số điện thoại zalo:" textFill="WHITE" />
+                        <Label layoutX="172.0" layoutY="363.0" prefHeight="18.0" prefWidth="103.0" text="0384406365" textFill="WHITE" />
+                    </children>
+                </AnchorPane>
+                <AnchorPane fx:id="forgotpassword_form_1" prefHeight="400.0" prefWidth="300.0" styleClass="form_right" stylesheets="@../CSS/login.css">
+                    <children>
+                        <ImageView fitHeight="59.0" fitWidth="59.0" layoutX="34.0" layoutY="25.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../Image/setting.png" />
+                            </image>
+                        </ImageView>
+                        <Label alignment="CENTER" layoutX="111.0" layoutY="38.0" prefHeight="34.0" prefWidth="163.0" styleClass="head_label" stylesheets="@../CSS/login.css" text="Forgot password">
+                            <font>
+                                <Font name="System Bold Italic" size="18.0" />
+                            </font>
+                        </Label>
+                        <Button fx:id="forgot_kiemtra_1" layoutX="111.0" layoutY="287.0" mnemonicParsing="false" onAction="#forgortXacnhanthaydoimatkhau" prefHeight="31.0" prefWidth="155.0" styleClass="login_btn" stylesheets="@../CSS/login.css" text="Kiểm tra xác nhận">
+                            <font>
+                                <Font name="System Bold Italic" size="14.0" />
+                            </font>
+                        </Button>
+                        <Label layoutX="34.0" layoutY="103.0" prefHeight="18.0" prefWidth="122.0">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Label layoutX="34.0" layoutY="200.0" prefHeight="26.0" prefWidth="175.0" text="Xác nhận lại mật khẩu">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <Label layoutX="34.0" layoutY="120.0" prefHeight="26.0" prefWidth="175.0" text="Nhập lại mật khẩu">
+                            <font>
+                                <Font name="System Bold" size="16.0" />
+                            </font>
+                        </Label>
+                        <TextField fx:id="makhau_kiemtra_1" layoutX="37.0" layoutY="149.0" minHeight="0.0" prefHeight="26.0" prefWidth="232.0" promptText="nhập mật khẩu" styleClass="textfield" stylesheets="@../CSS/login.css" />
+                        <PasswordField fx:id="matkhau_kiemtra_1_1" layoutX="37.0" layoutY="226.0" prefHeight="26.0" prefWidth="232.0" promptText="Xác nhận" styleClass="textfield" />
+                    </children>
+                </AnchorPane>
+                <AnchorPane fx:id="silde_form" prefHeight="400.0" prefWidth="300.0" styleClass="logo_shop" stylesheets="@../CSS/login.css">
+                    <children>
+                        <Button fx:id="side_create_btn" layoutX="16.0" layoutY="346.0" mnemonicParsing="false" onAction="#switchFor" prefHeight="42.0" prefWidth="260.0" styleClass="taotaikhoan" stylesheets="@../CSS/login.css" text="Tạo tài khoản mới">
+                            <font>
+                                <Font name="System Bold Italic" size="19.0" />
+                            </font>
+                        </Button>
+                        <Button fx:id="side_create_btn1_login" layoutX="16.0" layoutY="346.0" mnemonicParsing="false" onAction="#switchHyper" prefHeight="42.0" prefWidth="260.0" styleClass="taotaikhoan" stylesheets="@../CSS/login.css" text="Quay lại đăng nhập nào!" visible="false">
+                            <font>
+                                <Font name="System Bold Italic" size="19.0" />
+                            </font>
+                        </Button>
+                        <Button fx:id="side_create_btn_login" layoutX="16.0" layoutY="346.0" mnemonicParsing="false" onAction="#switchFor" prefHeight="42.0" prefWidth="260.0" styleClass="taotaikhoan" stylesheets="@../CSS/login.css" text="Quay lại đăng nhập" visible="false">
+                            <font>
+                                <Font name="System Bold Italic" size="19.0" />
+                            </font>
+                        </Button>
+                        <ImageView fitHeight="272.0" fitWidth="281.0" layoutX="14.0" layoutY="74.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../Image/wolf.png" />
+                            </image>
+                        </ImageView>
+                        <Label alignment="CENTER" layoutX="14.0" layoutY="14.0" prefHeight="72.0" prefWidth="272.0" text="Night Wolf">
+                            <font>
+                                <Font name="Algerian" size="36.0" />
+                            </font>
+                        </Label>
+                    </children>
+                </AnchorPane>
+            </children>
+        </AnchorPane>
+    </children>
+</StackPane>

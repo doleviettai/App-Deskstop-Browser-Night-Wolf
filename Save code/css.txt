@@ -1,0 +1,49 @@
+/* ========== FIX ICON SIZE ========== */
+
+/* Force tất cả ImageView trong tab có size cố định */
+.tab ImageView,
+.tab-label ImageView,
+.tab-pane .tab ImageView {
+    -fx-fit-width: 16 !important;
+    -fx-fit-height: 16 !important;
+}
+
+/* Container của tab */
+.tab .tab-container {
+    -fx-alignment: center-left;
+}
+
+/* Label trong tab */
+.tab-label {
+    -fx-graphic-text-gap: 6px;
+    -fx-alignment: center-left;
+}
+
+
+
+/* ========== NÚT ĐÓNG TAB (×) ========== */
+.tab .tab-close-button .close-button-graphic {
+    -fx-shape: "M 0 0 L 8 8 M 8 0 L 0 8"; /* hình chữ X */
+    -fx-background-color: black;  /* tab chưa chọn: màu đen */
+    -fx-min-width: 8px;
+    -fx-min-height: 8px;
+    -fx-max-width: 8px;
+    -fx-max-height: 8px;
+}
+
+/* Tab được chọn => × màu trắng */
+.tab:selected .tab-close-button .close-button-graphic {
+    -fx-background-color: white;
+}
+
+/* Hover: thêm nền sáng */
+.tab .tab-close-button:hover {
+    -fx-background-color: rgba(200, 200, 200, 0.4); /* nền sáng trong suốt */
+    -fx-background-radius: 50%;  /* tròn trịa cho đẹp */
+    -fx-padding: 2px;
+}
+
+/* Hover + tab được chọn */
+.tab:selected .tab-close-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.3); /* nền sáng trắng */
+}

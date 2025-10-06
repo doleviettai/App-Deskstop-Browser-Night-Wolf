@@ -1,0 +1,9 @@
+<!-- Slide Menu -->
+<!--            <AnchorPane fx:id="slideMenu" prefWidth="200" styleClass="slideMenu">-->
+<!--            <children>-->
+<!--               <Button alignment="CENTER_LEFT" layoutX="14.0" layoutY="46.0" mnemonicParsing="false" prefHeight="27.0" prefWidth="381.0" styleClass="nutnhan" text="Button" />-->
+<!--               <Button alignment="CENTER_LEFT" layoutX="14.0" layoutY="88.0" mnemonicParsing="false" prefHeight="27.0" prefWidth="382.0" styleClass="nutnhan" text="Button" />-->
+<!--               <Label fx:id="username_browser" layoutX="14.0" layoutY="14.0" prefHeight="18.0" prefWidth="384.0" text="Label" />-->
+<!--            </children>-->
+<!--            </AnchorPane>-->
+            <!-- Slide Menu -->

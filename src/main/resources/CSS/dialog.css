@@ -1,0 +1,38 @@
+/* Alert thành công */
+.thanhcong {
+    -fx-background-color: #d4edda; /* xanh lá nhạt */
+    -fx-border-color: #28a745;
+    -fx-border-width: 2;
+}
+
+.thanhcong .content.label {
+    -fx-text-fill: #155724;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+/* Alert thất bại */
+.thatbai {
+    -fx-background-color: #f8d7da; /* đỏ nhạt */
+    -fx-border-color: #dc3545;
+    -fx-border-width: 2;
+}
+
+.thatbai .content.label {
+    -fx-text-fill: #721c24;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+/* Alert lỗi */
+.loi {
+    -fx-background-color: #fff3cd; /* vàng nhạt */
+    -fx-border-color: #ffc107;
+    -fx-border-width: 2;
+}
+
+.loi .content.label {
+    -fx-text-fill: #856404;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}

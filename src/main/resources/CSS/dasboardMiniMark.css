@@ -1,0 +1,300 @@
+.to_top{
+-fx-background-color:linear-gradient(to right ,rgb(255,148,114), rgb(242,112,156));
+}
+.to_tops{
+-fx-background-color:linear-gradient(to right ,rgb(255,148,114), rgb(242,112,156));
+-fx-border-color:black;
+-fx-border-width:2px;
+}
+.close{
+  -fx-background-color:transparent;
+  -fx-background-radius:6px;
+  -fx-border-color:#000;
+  -fx-border-width:2px;
+  -fx-border-radius:5px;
+  -fx-cursor:hand;
+}
+.close:hover{
+  -fx-background-color:red;
+}
+.minimize{
+  -fx-background-color:transparent;
+    -fx-background-radius:6px;
+    -fx-border-color:#000;
+    -fx-border-width:2px;
+    -fx-border-radius:5px;
+    -fx-cursor:hand;
+}
+.minimize:hover{
+    -fx-background-color:#d7d3d3;
+}
+.logout{
+      -fx-background-color:linear-gradient(to top ,#0980f7,#00d4ff);
+      -fx-background-radius:9px;
+      -fx-border-color:#000;
+      -fx-border-width:4px;
+      -fx-border-radius:7px;
+      -fx-cursor:hand;
+}
+.logout:hover{
+      -fx-background-color:#00d4ff;
+      -fx-border-color:linear-gradient(to right,rgb(255,148,114),#fff600);
+}
+.nav-btn{
+   -fx-background-color:transparent;
+   -fx-cursor:hand;
+   -fx-text-fill:#fff;
+}
+.nav-btn:hover{
+  -fx-background-color:rgb(242,112,156);
+}
+.nav-btn2{
+   -fx-background-color:transparent;
+   -fx-cursor:hand;
+   -fx-text-fill:black;
+}
+.nav-btn2:hover{
+  -fx-background-color:rgb(242,112,156);
+}
+.shadow{
+  -fx-effect:dropshadow(three-pass-box,rgba(0,0,0,0.7) , 10,0,0,0);
+}
+.font_action{
+   -fx-background-color:linear-gradient(to bottom , rgb(242,112,156),rgb(255,148,114));
+}
+.radius{
+   -fx-background-color:transparent;
+   -fx-background-radius:8px;
+   -fx-border-color:#000;
+   -fx-border-width:2px;
+   -fx-border-radius:10px;
+}
+.search{
+   -fx-background-radius:4px;
+   -fx-background-width:2px;
+   -fx-border-color:#000;
+   -fx-border-radius:5px;
+   -fx-cursor:text;
+}
+.search:focused{
+   -fx-border-color:purple;
+   -fx-border-width:3px;
+}
+.nutnhan {
+    -fx-background-color: linear-gradient(to right, #E1B79F, #BF9DCD);
+    -fx-cursor: hand;
+    -fx-background-radius: 5px;
+    -fx-border-color: #000;
+    -fx-border-radius: 6px;
+    -fx-border-width: 0.8px;
+}
+
+.nutnhan:pressed {
+    -fx-background-color: #0980f7;
+}
+
+.anh{
+     -fx-background-color:#fff;
+     -fx-background-radius:4px;
+     -fx-border-color:#000;
+     -fx-border-radius:3px;
+}
+.table-view{
+     -fx-background-color:transparent;
+     -fx-padding :0;
+     -fx-border-color:#7e41bf;
+     -fx-border-radius:5px;
+     -fx-border-width:1.5px;
+
+}
+.table-view.column-header-background{
+      -fx-background-color:#7e41bf;
+      -fx-background-radius:5px 5px 0 0 ;
+      -fx-background-insets:0 0 0 0;
+}
+.table-view.column-header, .filter{
+      -fx-background-color:transparent;
+      -fx-size:45px;
+}
+.card_1{
+      -fx-background-color:rgb(255,148,114);
+      -fx-background-radius:4px;
+      -fx-border-color:black;
+      -fx-border-radius:4px;
+      -fx-border-width:1px;
+}
+.card_1_label{
+       -fx-background-color:skyblue;
+}
+.round-box{
+       -fx-background-radius:100%;
+       -fx-border-radius:100%;
+       -fx-border-width:4px;
+}
+.round_data{
+       -fx-background-height:100px;
+       -fx-background-width:100px;
+}
+.list-online{
+    -fx-background-color: rgb(255,148,114);
+    -fx-text-fill: black;
+    -fx-border-color: black;  /* Thiết lập màu đường viền */
+    -fx-alignment: center;
+}
+
+/* TabPane tổng thể */
+.newtab {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 0%, #ff9472, #f2709c);
+    -fx-background-radius: 12px;
+    -fx-border-width: 1.5px;
+    -fx-border-radius: 18px 18px 18px 18px;
+}
+
+/* Thanh header chứa tab */
+.tab-header-area {
+    -fx-background-color: #7e41bf;
+    -fx-background-radius: 12px 12px 0 0;
+    -fx-padding: 4px;
+}
+
+/* Tab bình thường */
+.tab {
+    -fx-background-color: #f4f4f4;
+    -fx-cursor: hand;
+    -fx-padding: 6px 14px;
+    -fx-background-radius: 18px 18px 18px 18px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-text-base-color: black;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* Hover tab */
+.tab:hover {
+    -fx-background-color: #e8e8e8;
+}
+
+/* Tab được chọn */
+.tab:selected {
+    -fx-background-color: #f2709c;
+    -fx-border-color: transparent;
+    -fx-border-width: 2px;
+    -fx-text-base-color: white;
+    -fx-background-radius: 18px 18px 18px 18px;
+}
+
+/* Vùng nội dung tab */
+.tab-content-area {
+    -fx-background-color: white;
+    -fx-background-radius: 0 0 12px 12px;
+    -fx-padding: 12px;
+}
+
+/* Tab "+" */
+.tab-add-button {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-shape: "M0,5 L10,5 M5,0 L5,10";
+    -fx-scale-x: 1.3;
+    -fx-scale-y: 1.3;
+    -fx-stroke: white;
+    -fx-border-width: 0;
+}
+
+/* ========== NÚT DROPDOWN (MŨI TÊN) ========== */
+
+.tab-header-area .control-buttons-tab {
+    -fx-background-color: rgb(255,148,114);
+    -fx-background-radius: 8px;
+}
+
+/* Nút mũi tên dropdown */
+.tab-header-area .tab-down-button {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+    -fx-background-radius: 8px;
+    -fx-padding: 5px 8px;
+    -fx-cursor: hand;
+}
+
+.tab-header-area .tab-down-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Mũi tên trong nút */
+.tab-header-area .tab-down-button .arrow {
+    -fx-background-color: white;
+}
+
+/* ========== DROPDOWN MENU (CONTEXT MENU) ========== */
+
+/* Menu popup - NỀN TRẮNG */
+.context-menu {
+    -fx-background-color: white;
+    -fx-background-radius: 12px;
+    -fx-padding: 8px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 12, 0, 0, 4);
+    -fx-border-color: #e0e0e0;
+    -fx-border-width: 1px;
+    -fx-border-radius: 12px;
+}
+
+/* Mỗi item trong dropdown menu - NỀN TRẮNG */
+.context-menu .menu-item {
+    -fx-background-color: white;
+    -fx-padding: 8px 14px;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+    -fx-min-height: 36px;
+    -fx-max-height: 36px;
+    -fx-pref-height: 36px;
+}
+
+/* Hover vào item - MÀU rgb(255,148,114) = #ff9472 */
+.context-menu .menu-item:hover {
+    -fx-background-color: rgb(255, 148, 114);
+}
+
+/* Text trong menu item khi hover đổi màu trắng */
+.context-menu .menu-item:hover .label {
+    -fx-text-fill: white;
+}
+
+/* Label trong menu item */
+.context-menu .menu-item .label {
+    -fx-graphic-text-gap: 10px;
+    -fx-font-size: 13px;
+    -fx-text-fill: #333333;
+    -fx-alignment: center-left;
+    -fx-font-weight: normal;
+}
+
+/* CRITICAL: ImageView trong dropdown menu - SIZE CỐ ĐỊNH */
+.context-menu ImageView,
+.context-menu .menu-item ImageView,
+.context-menu .menu-item .graphic ImageView {
+    -fx-fit-width: 16 !important;
+    -fx-fit-height: 16 !important;
+}
+
+
+
+/* ========== RESPONSIVE ========== */
+.tab-header-area .headers-region .tab {
+    -fx-max-width: 220px;
+    -fx-min-width: 120px;
+}
+
+
+.slideMenu {
+    -fx-background-color:linear-gradient(to right ,rgb(255,148,114), rgb(242,112,156));       /* nền trắng sáng */
+    -fx-background-radius: 10;            /* bo viền nền */
+    -fx-border-radius: 10;                /* bo viền border */
+    -fx-border-color: #000000;            /* viền xám nhạt */
+    -fx-border-width: 1;                  /* độ dày viền */
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0.5, 0, 2); /* shadow */
+    -fx-padding: 10;                       /* padding bên trong */
+}
+
