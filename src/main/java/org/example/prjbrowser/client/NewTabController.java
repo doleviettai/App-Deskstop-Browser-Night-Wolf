@@ -3,8 +3,11 @@ package org.example.prjbrowser.client;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
+import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.concurrent.Worker;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -13,13 +16,13 @@ import javafx.fxml.Initializable;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebHistory;
@@ -28,13 +31,15 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.example.prjbrowser.client.desginer.dialog;
 import org.example.prjbrowser.common.Message;
+import org.example.prjbrowser.model.HistoryItem;
 
 import java.io.*;
 import java.net.Socket;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Objects;
+import java.util.List;
+import java.util.Map;
 import java.util.ResourceBundle;
 
 public class NewTabController implements Initializable {
@@ -61,13 +66,13 @@ public class NewTabController implements Initializable {
     private TextField searchBrowser;
 
     @FXML
-    private TableView<?> table_history_browser;
+    private TableView<HistoryItem> table_history_browser;
 
     @FXML
-    private TableColumn<?, ?> time_col_table;
+    private TableColumn<HistoryItem, String> time_col_table;
 
     @FXML
-    private TableColumn<?, ?> url_col_table;
+    private TableColumn<HistoryItem, String> url_col_table;
 
     @FXML
     private TableColumn<?, ?> action_col_table;
@@ -136,6 +141,7 @@ public class NewTabController implements Initializable {
 
     private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
         Socket socket = new Socket("localhost", 12345);
+//        Socket socket = new Socket("192.168.56.1", 12345);
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
         ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 
@@ -224,7 +230,6 @@ public class NewTabController implements Initializable {
                             request.getData().put("title", title);
                             request.getData().put("hidden", false);
 
-                            // gửi đến server (blocking) — bạn có thể gửi async nếu muốn
                             sendRequest(request);
                         } catch (Exception ex) {
                             ex.printStackTrace();
@@ -292,7 +297,7 @@ public class NewTabController implements Initializable {
     }
 
     public void list_History() {
-        // Kiểm tra đăng nhập chính xác hơn
+        // 1️⃣ Kiểm tra đăng nhập
         boolean notLoggedIn = currentId == null
                 || currentUsername == null
                 || currentFullname == null
@@ -301,10 +306,10 @@ public class NewTabController implements Initializable {
         if (notLoggedIn) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             dl.alertDialog(alert, "Lỗi", "Người dùng chưa đăng nhập. Không thể xem lịch sử.", "thatbai");
-            return; // Dừng hàm, không cho chuyển sang giao diện lịch sử
+            return;
         }
 
-        // Nếu đã đăng nhập, hiển thị giao diện lịch sử
+        // 2️⃣ Hiển thị giao diện lịch sử
         atHome = false;
         mainBackground.setVisible(false);
         historyBrowser.setVisible(true);
@@ -312,12 +317,59 @@ public class NewTabController implements Initializable {
 
         // Hiệu ứng đóng slide menu
         TranslateTransition tt = new TranslateTransition(Duration.millis(300), slideMenu);
-        tt.setToX(getScreenWidth()); // Trượt ra ngoài
+        tt.setToX(getScreenWidth());
         tt.setOnFinished(e -> overlay.setVisible(false));
         tt.play();
-
         isMenuOpen = false;
+
+        // 3️⃣ Gửi request lấy lịch sử
+        new Thread(() -> {
+            try {
+                // Tạo message gửi lên server
+                Message req = new Message();
+                req.put("action", "show_history_user");
+                req.put("user_id", currentId);
+
+                // Gửi yêu cầu và nhận phản hồi
+                Message res = sendRequest(req);
+
+                // Xử lý phản hồi
+                if (res != null && "success".equals(res.get("status"))) {
+                    List<Map<String, String>> data = (List<Map<String, String>>) res.get("data");
+
+                    Platform.runLater(() -> {
+                        ObservableList<HistoryItem> historyData = FXCollections.observableArrayList();
+                        for (Map<String, String> row : data) {
+                            historyData.add(new HistoryItem(
+                                    row.get("url"),
+                                    row.get("visit_time")
+                            ));
+                        }
+
+                        // Liên kết dữ liệu vào TableView
+                        table_history_browser.setItems(historyData);
+                        url_col_table.setCellValueFactory(new PropertyValueFactory<HistoryItem , String>("url"));
+                        time_col_table.setCellValueFactory(new PropertyValueFactory<HistoryItem , String>("visitTime"));
+                    });
+
+                } else {
+                    String msg = (res != null) ? (String) res.get("message") : "Không có phản hồi từ server";
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        dl.alertDialog(alert, "Lỗi", msg, "thatbai");
+                    });
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    dl.alertDialog(alert, "Lỗi", "Không thể kết nối đến server: " + ex.getMessage(), "thatbai");
+                });
+            }
+        }).start();
     }
+
 
 
     public void Login_Logout(){

@@ -18,6 +18,7 @@
 <?import javafx.scene.text.Font?>
 <?import javafx.scene.web.WebView?>
 
+<?import javafx.scene.layout.Region?>
 <BorderPane fx:id="main_browser" styleClass="to_top" stylesheets="@../CSS/dasboardMiniMark.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.client.NewTabController">
 
     <!-- Toolbar -->
@@ -56,8 +57,17 @@
             <!-- WebView chính -->
             <WebView fx:id="webView" visible="false" />
 
-            <AnchorPane fx:id="mainBackground" styleClass="background_browser">
+            <AnchorPane fx:id="mainBackground">
                 <children>
+                    <!-- Layer 1: Ảnh nền responsive -->
+                    <Region styleClass="background-layer"
+                            AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+                            AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+
+                    <!-- Layer 2: Overlay gradient -->
+                    <AnchorPane styleClass="overlay-gradient"
+                                AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
+                                AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
                     <!-- VBox chính để căn dọc các element, giãn theo chiều ngang (anchored) -->
                     <VBox spacing="20.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                         <children>
@@ -81,7 +91,7 @@
                             </HBox>
 
                             <!-- Date label, chiếm toàn chiều ngang, text căn giữa -->
-                            <Label fx:id="Date_label" alignment="CENTER" maxWidth="Infinity" text="DD/MM/yyyy" textFill="WHITE">
+                            <Label fx:id="Date_label" alignment="CENTER" maxWidth="Infinity" text="DD/MM/yyyy" textFill="BLACK">
                                 <font>
                                     <Font name="Script MT Bold" size="27.0" />
                                 </font>
@@ -94,15 +104,10 @@
             <AnchorPane fx:id="historyBrowser" styleClass="to_top" visible="false">
                 <children>
                     <!-- Dùng HBox để chứa 2 vùng: bên trái (nội dung chính) + bên phải (nút chức năng) -->
-                    <HBox AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
-                          AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0"
-                          spacing="10" style="-fx-padding: 10;">
+                    <HBox spacing="10" style="-fx-padding: 10;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
 
                         <!-- VÙNG CHÍNH: Lịch sử trình duyệt -->
-                        <VBox fx:id="vboxHistory"
-                              spacing="10"
-                              styleClass="history-container"
-                              HBox.hgrow="ALWAYS">
+                        <VBox fx:id="vboxHistory" spacing="10" styleClass="history-container" HBox.hgrow="ALWAYS">
 
                             <children>
                                 <!-- Thanh tìm kiếm -->
@@ -110,20 +115,8 @@
                                     <children>
                                         <AnchorPane prefHeight="50.0" HBox.hgrow="ALWAYS">
                                             <children>
-                                                <FontAwesomeIconView glyphName="SEARCH"
-                                                                     layoutX="15.0"
-                                                                     layoutY="28.0"
-                                                                     size="20"
-                                                                     styleClass="search-icon" />
-                                                <TextField fx:id="searchBrowser"
-                                                           layoutX="45.0"
-                                                           layoutY="10.0"
-                                                           prefHeight="30.0"
-                                                           promptText="Tìm kiếm"
-                                                           styleClass="search"
-                                                           stylesheets="@../CSS/dasboardMiniMark.css"
-                                                           AnchorPane.leftAnchor="45.0"
-                                                           AnchorPane.rightAnchor="15.0" />
+                                                <FontAwesomeIconView glyphName="SEARCH" layoutX="15.0" layoutY="28.0" size="20" styleClass="search-icon" />
+                                                <TextField fx:id="searchBrowser" layoutX="45.0" layoutY="10.0" prefHeight="30.0" promptText="Tìm kiếm" styleClass="search" stylesheets="@../CSS/dasboardMiniMark.css" AnchorPane.leftAnchor="45.0" AnchorPane.rightAnchor="15.0" />
                                             </children>
                                         </AnchorPane>
                                     </children>
@@ -141,16 +134,12 @@
                         </VBox>
 
                         <!-- VÙNG PHỤ: Các nút chức năng -->
-                        <VBox fx:id="vboxButtons"
-                              prefWidth="120.0"
-                              spacing="10"
-                              alignment="TOP_CENTER"
-                              style="-fx-background-color: #f4f4f4; -fx-padding: 10; -fx-border-color: #ddd; -fx-border-radius: 8;">
+                        <VBox fx:id="vboxButtons" alignment="TOP_CENTER" prefWidth="120.0" spacing="10" style="-fx-background-color: #f4f4f4; -fx-padding: 10; -fx-border-color: #ddd; -fx-border-radius: 8;">
                             <children>
-                                <Button fx:id="btnRefresh" text="Làm mới" prefWidth="100.0" />
-                                <Button fx:id="btnDelete" text="Xoá lịch sử" prefWidth="100.0" />
-                                <Button fx:id="btnExport" text="Xuất file" prefWidth="100.0" />
-                                <Button fx:id="btnClose" text="Đóng" prefWidth="100.0" onAction="#home" />
+                                <Button fx:id="btnRefresh" prefWidth="100.0" text="Làm mới" />
+                                <Button fx:id="btnDelete" prefWidth="100.0" text="Xoá lịch sử" />
+                                <Button fx:id="btnExport" prefWidth="100.0" text="Xuất file" />
+                                <Button fx:id="btnClose" onAction="#home" prefWidth="100.0" text="Đóng" />
                             </children>
                         </VBox>
 
@@ -180,12 +169,10 @@
                      <AnchorPane prefHeight="28.0" prefWidth="342.0">
                         <children>
                            <Button fx:id="Logout" alignment="CENTER_LEFT" maxWidth="Infinity" onAction="#Login_Logout" prefHeight="27.0" prefWidth="342.0" styleClass="nutnhan" text="Đăng xuất" />
-            
-                                                                    <Button fx:id="Login" alignment="CENTER_LEFT" maxWidth="Infinity" onAction="#Login_Logout" prefHeight="27.0" prefWidth="342.0" styleClass="nutnhan" text="Đăng nhập" />
+                            <Button fx:id="Login" alignment="CENTER_LEFT" maxWidth="Infinity" onAction="#Login_Logout" prefHeight="27.0" prefWidth="342.0" styleClass="nutnhan" text="Đăng nhập" />
                         </children>
                      </AnchorPane>
-      
-                                                              <Button fx:id="list_History" alignment="CENTER_LEFT" maxWidth="Infinity" onAction="#list_History" styleClass="nutnhan" text="Xem lịch sử" />
+                            <Button fx:id="list_History" alignment="CENTER_LEFT" maxWidth="Infinity" onAction="#list_History" styleClass="nutnhan" text="Xem lịch sử" />
                       </VBox>
                   <ImageView fitHeight="126.0" fitWidth="103.0" layoutX="55.0" layoutY="14.0" pickOnBounds="true" preserveRatio="true">
                      <image>

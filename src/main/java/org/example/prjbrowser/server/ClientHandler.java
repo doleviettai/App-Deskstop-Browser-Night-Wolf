@@ -6,6 +6,10 @@ import org.example.prjbrowser.model.database;
 import java.io.*;
 import java.net.Socket;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ClientHandler implements Runnable {
     private Socket socket;
@@ -236,6 +240,42 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                case "show_history_user": {
+                    try {
+                        int userId = Integer.parseInt(req.get("user_id").toString());
+
+                        PreparedStatement ps = conn.prepareStatement("""
+                            SELECT u.url, v.visit_time
+                            FROM brower.visits v
+                            JOIN brower.urls u ON v.url_id = u.id
+                            WHERE v.user_id = ?
+                            ORDER BY v.visit_time DESC
+                        """);
+                        ps.setInt(1, userId);
+                        ResultSet rs = ps.executeQuery();
+
+                        List<Map<String, String>> historyList = new ArrayList<>();
+                        while (rs.next()) {
+                            Map<String, String> item = new HashMap<>();
+                            item.put("url", rs.getString("url"));
+                            item.put("visit_time", rs.getString("visit_time"));
+                            historyList.add(item);
+                        }
+
+                        res.put("status", "success");
+                        res.put("message", "Lấy lịch sử thành công");
+                        res.put("data", historyList);
+
+                        rs.close();
+                        ps.close();
+
+                    } catch (Exception ex) {
+                        res.put("status", "fail");
+                        res.put("message", "Lỗi khi lấy lịch sử: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
+                    break;
+                }
 
 
 

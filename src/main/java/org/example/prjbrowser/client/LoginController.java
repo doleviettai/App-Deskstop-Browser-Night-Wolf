@@ -187,7 +187,8 @@ public class LoginController implements Initializable {
     }
 
     private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
-        Socket socket = new Socket("localhost", 12345);
+//        Socket socket = new Socket("localhost", 12345);
+        Socket socket = new Socket("192.168.56.1", 12345);
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
         ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 

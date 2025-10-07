@@ -6,6 +6,19 @@
 -fx-border-color:black;
 -fx-border-width:2px;
 }
+/* Layer ảnh nền */
+.background-layer {
+    -fx-background-image: url("../Image/wolf_background.jpg");
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center center; /* căn giữa */
+    -fx-background-size: cover;             /* phủ toàn vùng, giữ tỉ lệ ảnh */
+}
+
+/* Layer gradient overlay (nếu muốn tách ra CSS) */
+.overlay-gradient {
+    -fx-background-color: linear-gradient(to right, rgba(255,148,114,0.35), rgba(242,112,156,0.35));
+}
+
 .close{
   -fx-background-color:transparent;
   -fx-background-radius:6px;
