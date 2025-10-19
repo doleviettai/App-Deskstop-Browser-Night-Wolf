@@ -13,6 +13,7 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -22,6 +23,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.web.WebEngine;
@@ -31,6 +33,7 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.example.prjbrowser.client.desginer.dialog;
 import org.example.prjbrowser.common.Message;
+import org.example.prjbrowser.model.AutoLoginService;
 import org.example.prjbrowser.model.HistoryItem;
 
 import java.io.*;
@@ -105,6 +108,10 @@ public class NewTabController implements Initializable {
     private Label Date_label;
     @FXML
     private Label Time_label;
+    @FXML
+    private Button bookmarkBtn;
+    @FXML
+    private HBox tabBar;
 
     private WebEngine engine;
     private double zoomLevel = 1.0;
@@ -126,7 +133,11 @@ public class NewTabController implements Initializable {
         this.currentFullname = fullname;
         username_browser.setText(id+" "+fullname); // hiển thị họ tên
 
+        if (username_browser != null)
+            username_browser.setText(id + " " + fullname);
+
         // gọi cập nhật nút login/logout
+        loadUserBookmarks();
         Login_Logout();
     }
 
@@ -141,6 +152,7 @@ public class NewTabController implements Initializable {
 
     private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
         Socket socket = new Socket("localhost", 12345);
+//        Socket socket = new Socket("172.20.10.2", 12345);
 //        Socket socket = new Socket("192.168.56.1", 12345);
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
         ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
@@ -246,7 +258,7 @@ public class NewTabController implements Initializable {
         engine.load(url);
     }
 
-    private String normalizeUrl(String url) {
+    public String normalizeUrl(String url) {
         if (url == null) return "";
         url = url.trim().toLowerCase();
 
@@ -372,63 +384,287 @@ public class NewTabController implements Initializable {
 
 
 
-    public void Login_Logout(){
-        if (currentUsername == null || currentFullname == null) {
-            // Chưa login → hiện nút đăng nhập
-            Login.setVisible(true);
-            Logout.setVisible(false);
+    public void Login_Logout() {
+        boolean notLoggedIn = currentUsername == null || currentFullname == null || currentUsername.isEmpty();
 
-            Login.setOnAction(e -> {
-                try {
-                    // mở form login
-                    main_browser.getScene().getWindow().hide();
-                    FXMLLoader loader = new FXMLLoader(getClass().getResource("/FXML/login.fxml"));
-                    Parent root = loader.load();
+        Login.setVisible(notLoggedIn);
+        Logout.setVisible(!notLoggedIn);
 
-                    Stage stage = new Stage();
-                    stage.setTitle("Đăng nhập");
-                    stage.setScene(new Scene(root));
-
-                    stage.setTitle("Night Wolf");
-                    Image icon = new Image(getClass().getResourceAsStream("/Image/wolf.png"));
-                    stage.getIcons().add(icon);
-                    stage.show();
-
-                    // sau khi login thành công, bạn sẽ nhận username + fullname từ LoginController
-                    // rồi gọi lại Login_Logout() để cập nhật nút
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-            });
+        if (notLoggedIn) {
+            Login.setOnAction(e -> openLoginForm());
         } else {
-            // Đã login → hiện nút đăng xuất
-            Login.setVisible(false);
-            Logout.setVisible(true);
-
-            Logout.setOnAction(e -> {
-                // clear thông tin user
-                currentUsername = null;
-                currentFullname = null;
-
-                try {
-                    // mở form login
-                    main_browser.getScene().getWindow().hide();
-                    FXMLLoader loader = new FXMLLoader(getClass().getResource("/FXML/login.fxml"));
-                    Parent root = loader.load();
-
-                    Stage stage = new Stage();
-                    stage.setTitle("Đăng nhập");
-                    stage.setScene(new Scene(root));
-                    stage.show();
-
-                    // sau khi login thành công, bạn sẽ nhận username + fullname từ LoginController
-                    // rồi gọi lại Login_Logout() để cập nhật nút
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-            });
+            Logout.setOnAction(e -> logout());
         }
     }
+
+    private void openLoginForm() {
+        try {
+            main_browser.getScene().getWindow().hide();
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/FXML/login.fxml"));
+            Parent root = loader.load();
+
+            Stage stage = new Stage();
+            stage.setTitle("Đăng nhập - Night Wolf");
+            stage.setScene(new Scene(root));
+            stage.getIcons().add(new Image(getClass().getResourceAsStream("/Image/wolf.png")));
+            stage.show();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private void logout() {
+        try {
+            AutoLoginService auto = AutoLoginService.getInstance();
+            String token = auto.getSessionToken();
+
+            if (token == null || token.isEmpty()) {
+                System.out.println("⚠️ Không có session token để đăng xuất.");
+                return;
+            }
+
+            // Gửi yêu cầu LOGOUT tới server
+            Message request = new Message();
+            request.put("action", "logout");
+            request.put("token", token);
+
+            Message response = sendRequest(request);
+
+            if (response != null && "success".equals(response.get("status"))) {
+                System.out.println("🚪 Đăng xuất thành công trên server.");
+
+                // Xóa session cục bộ
+                auto.clearSession();
+
+                // Quay lại màn hình đăng nhập
+                Stage currentStage = (Stage) main_browser.getScene().getWindow();
+                currentStage.close();
+
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("/FXML/login.fxml"));
+                Parent root = loader.load();
+                Stage stage = new Stage();
+                stage.setTitle("Đăng nhập - Night Wolf");
+                stage.setScene(new Scene(root));
+                stage.getIcons().add(new Image(getClass().getResourceAsStream("/Image/wolf.png")));
+                stage.show();
+
+            } else {
+                System.out.println("❌ Server không phản hồi hoặc trả lỗi khi logout.");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void loadUserBookmarks() {
+        if (currentId == null || currentId.isEmpty()) return;
+
+        try {
+            Message req = new Message();
+            req.put("action", "show_bookmark_of_user");
+            req.put("user_id", currentId);
+
+            Message res = sendRequest(req);
+
+            if (res != null && "success".equals(res.get("status"))) {
+                List<Map<String, Object>> bookmarks = (List<Map<String, Object>>) res.get("bookmarks");
+                for (Map<String, Object> bm : bookmarks) {
+                    String title = bm.get("title").toString();
+                    String url = bm.get("url").toString();
+                    addBookmarkToTabBar(title, url); // tái sử dụng hàm UI
+                }
+            } else {
+                System.out.println("⚠️ Không thể tải bookmark của user");
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+
+    // gọi khi nhấn nút bookmark
+    public void addBookmark() {
+        try {
+            // Kiểm tra đăng nhập
+            if (currentId == null || currentId.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                dl.alertDialog(alert, "Cảnh báo", "Vui lòng đăng nhập trước khi thêm bookmark!", "canhbao");
+                return;
+            }
+
+            // Lấy URL hiện tại
+            String currentUrl = engine.getLocation();
+            if (currentUrl == null || currentUrl.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                dl.alertDialog(alert, "Cảnh báo", "Không có trang web nào để lưu bookmark!", "canhbao");
+                return;
+            }
+
+            // Chuẩn hóa URL
+            String normalizedUrl = normalizeUrl(currentUrl);
+
+            // Kiểm tra trùng bookmark trong tabBar
+            for (Node node : tabBar.getChildren()) {
+                if (node instanceof Button btn) {
+                    Object userData = btn.getUserData();
+                    if (userData != null && normalizeUrl(userData.toString()).equals(normalizedUrl)) {
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        dl.alertDialog(alert, "Thông báo", "⭐ Bookmark này đã tồn tại!", "canhbao");
+                        return;
+                    }
+                }
+            }
+
+            // Lấy worker load trang
+            Worker<Void> worker = engine.getLoadWorker();
+
+            Runnable addBookmarkAction = () -> {
+                String title = engine.getTitle();
+                if (title == null || title.isEmpty()) {
+                    title = normalizedUrl;
+                }
+
+                // Gửi request
+                Message req = new Message();
+                req.put("action", "add_bookmark");
+                req.put("user_id", Integer.parseInt(currentId));
+                req.put("url", normalizedUrl);
+                req.put("title", title);
+
+                Message res = null;
+                try {
+                    res = sendRequest(req);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+
+                boolean ok = false;
+                if (res != null) {
+                    Object status = res.get("status");
+                    Object success = res.get("success");
+                    if ("success".equals(status) || Boolean.TRUE.equals(success)) ok = true;
+                }
+
+                if (ok) {
+                    addBookmarkToTabBar(title, normalizedUrl);
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    dl.alertDialog(alert, "Thành công", "⭐ Đã thêm bookmark thành công!", "thanhcong");
+                } else {
+                    String err = (res != null && res.get("message") != null)
+                            ? res.get("message").toString()
+                            : "Không thể thêm bookmark. Vui lòng thử lại.";
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    dl.alertDialog(alert, "Lỗi", err, "thatbai");
+                }
+            };
+
+            // Nếu trang đang load → chờ xong rồi mới lấy title
+            if (worker.getState() == Worker.State.RUNNING) {
+                ChangeListener<Worker.State> oneShot = new ChangeListener<>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Worker.State> obs, Worker.State oldState, Worker.State newState) {
+                        if (newState == Worker.State.SUCCEEDED) {
+                            worker.stateProperty().removeListener(this);
+                            Platform.runLater(addBookmarkAction);
+                        }
+                    }
+                };
+                worker.stateProperty().addListener(oneShot);
+            }
+            // Nếu trang đã load xong → lấy title ngay
+            else if (worker.getState() == Worker.State.SUCCEEDED) {
+                addBookmarkAction.run();
+            }
+            // Trường hợp load lỗi hoặc chưa load
+            else {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                dl.alertDialog(alert, "Cảnh báo", "Trang chưa sẵn sàng để lưu bookmark!", "canhbao");
+            }
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            dl.alertDialog(alert, "Lỗi", "Lỗi khi thêm bookmark: " + ex.getMessage(), "thatbai");
+        }
+    }
+
+
+
+    private void addBookmarkToTabBar(String title, String url) {
+        if (tabBar == null) return;
+
+        Button bookmarkButton = new Button(title);
+
+        // 🔹 Style cơ bản (sửa semi-bold → 600)
+        bookmarkButton.setStyle("""
+        -fx-background-color: linear-gradient(to right, #ff9472, #f2709c);
+        -fx-background-radius: 10px;
+        -fx-border-color: transparent;
+        -fx-text-fill: white;
+        -fx-font-size: 10px;
+        -fx-font-weight: 600;
+        -fx-padding: 1 6 1 6;
+        -fx-cursor: hand;
+        -fx-min-height: 18;
+        -fx-pref-height: 18;
+        -fx-max-height: 18;
+        -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 0.5);
+    """);
+
+        bookmarkButton.setOnMouseEntered(e ->
+                bookmarkButton.setStyle("""
+            -fx-background-color: linear-gradient(to right, #f2709c, #ff9472);
+            -fx-background-radius: 10px;
+            -fx-border-color: #ffffff33;
+            -fx-text-fill: white;
+            -fx-font-size: 10px;
+            -fx-font-weight: 600;
+            -fx-padding: 1 6 1 6;
+            -fx-cursor: hand;
+            -fx-min-height: 18;
+            -fx-pref-height: 18;
+            -fx-max-height: 18;
+            -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 1);
+            -fx-scale-x: 1.05;
+            -fx-scale-y: 1.05;
+        """)
+        );
+
+        bookmarkButton.setOnMouseExited(e ->
+                bookmarkButton.setStyle("""
+            -fx-background-color: linear-gradient(to right, #ff9472, #f2709c);
+            -fx-background-radius: 10px;
+            -fx-border-color: transparent;
+            -fx-text-fill: white;
+            -fx-font-size: 10px;
+            -fx-font-weight: 600;
+            -fx-padding: 1 6 1 6;
+            -fx-cursor: hand;
+            -fx-min-height: 18;
+            -fx-pref-height: 18;
+            -fx-max-height: 18;
+            -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 0.5);
+            -fx-scale-x: 1.0;
+            -fx-scale-y: 1.0;
+        """)
+        );
+
+        bookmarkButton.setOnAction(e -> {
+            engine.load(url);
+            mainBackground.setVisible(false);
+            historyBrowser.setVisible(false);
+            webView.setVisible(true);
+            setCurrentPageTitle(title);
+        });
+
+        int insertIndex = Math.max(0, tabBar.getChildren().size() - 1);
+        tabBar.getChildren().add(insertIndex, bookmarkButton);
+    }
+
+
 
     public WebEngine getEngine() {
         return engine;
@@ -578,6 +814,19 @@ public class NewTabController implements Initializable {
 
         // Load mặc định Google
 //        engine.load("https://www.google.com");
+
+        AutoLoginService autoLogin = AutoLoginService.getInstance();
+
+        if (autoLogin.hasSession()) {
+            this.currentId = String.valueOf(autoLogin.getUserId());
+            this.currentUsername = autoLogin.getUsername();
+            this.currentFullname = autoLogin.getFullname();
+
+            if (username_browser != null)
+                username_browser.setText(currentId + " " + currentFullname);
+        }
+
+        Login_Logout();
 
         // Ban đầu đặt slideMenu ngoài màn hình phải
         slideMenu.setTranslateX(getScreenWidth());

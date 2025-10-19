@@ -1,7 +1,10 @@
 package org.example.prjbrowser.server;
 
 import org.example.prjbrowser.common.Message;
+import org.example.prjbrowser.dao.SessionsDAO;
+import org.example.prjbrowser.model.Bookmarks;
 import org.example.prjbrowser.model.Jbcrypt;
+import org.example.prjbrowser.model.Sessions;
 import org.example.prjbrowser.model.database;
 import java.io.*;
 import java.net.Socket;
@@ -56,21 +59,65 @@ public class ClientHandler implements Runnable {
                     ResultSet rs = ps.executeQuery();
 
                     if (rs.next()) {
-                        String id = rs.getString("id");
+                        int id = rs.getInt("id");
                         String username = rs.getString("username");
                         String firstname = rs.getString("firstname");
                         String lastname  = rs.getString("lastname");
+
+                        // 🔹 Tạo session mới
+                        SessionsDAO sessionsDAO = new SessionsDAO(conn);
+                        Sessions session = sessionsDAO.createSession(id);
+
+                        // 🔹 Trả thông tin session cho client
                         res.put("status", "success");
                         res.put("message", "Đăng nhập thành công, chào mừng " + firstname + " " + lastname);
                         res.put("id", id);
-                        res.put("username", username); // gửi lại username
-                        res.put("fullname", firstname + " " + lastname); // gửi lại fullname
+                        res.put("username", username);
+                        res.put("fullname", firstname + " " + lastname);
+                        res.put("session_token", session.getSessionToken()); // trả về session token
                     } else {
                         res.put("status", "fail");
                         res.put("message", "Sai tài khoản hoặc mật khẩu");
                     }
                     break;
                 }
+
+                case "validate_session": {
+                    String token = (String) req.get("session_token");
+                    SessionsDAO sessionsDAO = new SessionsDAO(conn);
+
+                    boolean valid = sessionsDAO.validateSession(token);
+                    if (valid) {
+                        res.put("status", "success");
+                        res.put("message", "Session hợp lệ");
+                    } else {
+                        res.put("status", "fail");
+                        res.put("message", "Session đã hết hạn hoặc không hợp lệ");
+                    }
+                    break;
+                }
+
+                case "logout": {
+                    String token = (String) req.get("token");
+
+                    if (token == null || token.isEmpty()) {
+                        res.put("status", "fail");
+                        res.put("message", "Không có token để đăng xuất");
+                        break;
+                    }
+
+                    SessionsDAO sessionsDAO = new SessionsDAO(conn);
+                    sessionsDAO.deleteSession(token);
+
+                    System.out.println("🚪 User đã đăng xuất, token: " + token);
+                    res.put("status", "success");
+                    res.put("message", "Đã đăng xuất và xóa session khỏi DB");
+                    break;
+                }
+
+
+
+
 
                 case "register": {
                     PreparedStatement ps = conn.prepareStatement(
@@ -276,6 +323,152 @@ public class ClientHandler implements Runnable {
                     }
                     break;
                 }
+
+                case "show_bookmark_of_user": {
+                    try {
+                        int userId = Integer.parseInt(req.get("user_id").toString());
+                        List<Map<String, Object>> list = new ArrayList<>();
+
+                        String sql = """
+                            SELECT b.id, b.user_id, b.url_id, b.title, b.position, u.url
+                            FROM bookmarks b
+                            JOIN urls u ON b.url_id = u.id
+                            WHERE b.user_id = ?
+                            ORDER BY b.position ASC
+                        """;
+
+                        PreparedStatement ps = conn.prepareStatement(sql);
+                        ps.setInt(1, userId);
+                        ResultSet rs = ps.executeQuery();
+
+                        while (rs.next()) {
+                            Map<String, Object> bm = new HashMap<>();
+                            bm.put("id", rs.getInt("id"));
+                            bm.put("user_id", rs.getInt("user_id"));
+                            bm.put("url_id", rs.getInt("url_id"));
+                            bm.put("title", rs.getString("title"));
+                            bm.put("url", rs.getString("url"));
+                            bm.put("position", rs.getInt("position"));
+                            list.add(bm);
+                        }
+                        rs.close();
+                        ps.close();
+
+                        res.put("action", "show_bookmark_of_user_success");
+                        res.put("status", "success");
+                        res.put("bookmarks", list);
+
+                        System.out.println("📑 User " + userId + " có " + list.size() + " bookmark(s).");
+
+                    } catch (Exception e) {
+                        res.put("action", "show_bookmark_of_user_fail");
+                        res.put("status", "error");
+                        res.put("message", e.getMessage());
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "add_bookmark": {
+                    try {
+                        // 🔹 1. Lấy dữ liệu từ request
+                        int userId = Integer.parseInt(req.get("user_id").toString());
+                        String url = (String) req.get("url");
+                        String title = (String) req.get("title");
+
+                        // 🔹 2. Chuẩn hóa URL (tránh trùng www hoặc / cuối)
+//                        String url = normalizeUrl(rawUrl);
+
+                        // 🔹 3. Kiểm tra URL trong bảng urls
+                        int urlId = 0;
+                        PreparedStatement findUrl = conn.prepareStatement("SELECT id FROM urls WHERE url = ? LIMIT 1");
+                        findUrl.setString(1, url);
+                        ResultSet frs = findUrl.executeQuery();
+                        if (frs.next()) {
+                            urlId = frs.getInt("id");
+                        }
+                        frs.close();
+                        findUrl.close();
+
+                        // 🔹 4. Nếu chưa có thì thêm mới URL
+                        if (urlId == 0) {
+                            String insertUrl = "INSERT INTO urls (url, title, last_visit_time) VALUES (?, ?, NOW())";
+                            PreparedStatement insertUrlStmt = conn.prepareStatement(insertUrl, Statement.RETURN_GENERATED_KEYS);
+                            insertUrlStmt.setString(1, url);
+                            insertUrlStmt.setString(2, title);
+                            insertUrlStmt.executeUpdate();
+
+                            ResultSet gk = insertUrlStmt.getGeneratedKeys();
+                            if (gk.next()) urlId = gk.getInt(1);
+                            gk.close();
+                            insertUrlStmt.close();
+                        }
+
+                        // 🔹 5. Kiểm tra xem user đã bookmark URL này chưa
+                        PreparedStatement checkBk = conn.prepareStatement(
+                                "SELECT id FROM bookmarks WHERE user_id=? AND url_id=? LIMIT 1"
+                        );
+                        checkBk.setInt(1, userId);
+                        checkBk.setInt(2, urlId);
+                        ResultSet brs = checkBk.executeQuery();
+
+                        if (brs.next()) {
+                            // Đã tồn tại → không thêm nữa
+                            brs.close();
+                            checkBk.close();
+
+                            res.put("status", "exists");
+                            res.put("success", true);
+                            res.put("message", "Bookmark đã tồn tại");
+                        } else {
+                            brs.close();
+                            checkBk.close();
+
+                            // 🔹 6. Tính vị trí tiếp theo của user
+                            int nextPosition = 1;
+                            PreparedStatement posStmt = conn.prepareStatement(
+                                    "SELECT COALESCE(MAX(position), 0) + 1 AS next_pos FROM bookmarks WHERE user_id = ?"
+                            );
+                            posStmt.setInt(1, userId);
+                            ResultSet prs = posStmt.executeQuery();
+                            if (prs.next()) nextPosition = prs.getInt("next_pos");
+                            prs.close();
+                            posStmt.close();
+
+                            // 🔹 7. Thêm bookmark mới
+                            String insertBookmark = """
+                                INSERT INTO bookmarks (user_id, url_id, title, date_added, position)
+                                VALUES (?, ?, ?, NOW(), ?)
+                            """;
+                            PreparedStatement bmStmt = conn.prepareStatement(insertBookmark);
+                            bmStmt.setInt(1, userId);
+                            bmStmt.setInt(2, urlId);
+                            bmStmt.setString(3, title);
+                            bmStmt.setInt(4, nextPosition);
+                            bmStmt.executeUpdate();
+                            bmStmt.close();
+
+                            res.put("status", "success");
+                            res.put("success", true);
+                            res.put("url", url);
+                            res.put("title", title);
+                            res.put("position", nextPosition);
+                        }
+
+                        System.out.println("⭐ User " + userId + " đã bookmark: " + title + " (" + url + ")");
+
+                    } catch (Exception e) {
+                        res.put("status", "error");
+                        res.put("success", false);
+                        res.put("message", e.getMessage());
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+
+
+
+
 
 
 

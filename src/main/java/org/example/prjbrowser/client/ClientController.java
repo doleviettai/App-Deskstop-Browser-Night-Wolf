@@ -14,6 +14,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import org.example.prjbrowser.common.Message;
+import org.example.prjbrowser.model.AutoLoginService;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -45,8 +46,9 @@ public class ClientController implements Initializable {
     }
 
     private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
-//        Socket socket = new Socket("localhost", 12345);
-        Socket socket = new Socket("192.168.56.1", 12345);
+        Socket socket = new Socket("localhost", 12345);
+//        Socket socket = new Socket("172.20.10.2", 12345);
+//        Socket socket = new Socket("192.168.56.1", 12345);
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
         ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 
@@ -86,6 +88,7 @@ public class ClientController implements Initializable {
             // Lấy controller của tab mới
             NewTabController controller = loader.getController();
             controller.receiverNickName(id,username, fullName);
+            controller.loadUserBookmarks();
 
             Tab newTab = new Tab(title, root);
 
@@ -239,5 +242,17 @@ public class ClientController implements Initializable {
                 }
             });
         });
+
+        AutoLoginService autoLogin = AutoLoginService.getInstance();
+        if (autoLogin.hasSession()) {
+            this.id = String.valueOf(autoLogin.getUserId());
+            this.username = autoLogin.getUsername();
+            this.fullName = autoLogin.getFullname();
+
+            System.out.println("✅ ClientController khởi tạo với user: " + username + " | " + fullName);
+
+            // ✅ Tạo tab đầu tiên với thông tin user
+//            Platform.runLater(() -> createNewBrowserTab("Home"));
+        }
     }
 }

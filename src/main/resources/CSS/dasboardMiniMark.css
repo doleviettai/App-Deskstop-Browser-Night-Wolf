@@ -19,6 +19,19 @@
     -fx-background-color: linear-gradient(to right, rgba(255,148,114,0.35), rgba(242,112,156,0.35));
 }
 
+.bookmark-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #333;
+    -fx-font-size: 12px;
+    -fx-padding: 3 6;
+    -fx-cursor: hand;
+}
+
+.bookmark-button:hover {
+    -fx-background-color: #e0e0e0;
+}
+
+
 .close{
   -fx-background-color:transparent;
   -fx-background-radius:6px;

@@ -13,12 +13,12 @@
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 <?import javafx.scene.web.WebView?>
 
-<?import javafx.scene.layout.Region?>
 <BorderPane fx:id="main_browser" styleClass="to_top" stylesheets="@../CSS/dasboardMiniMark.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.client.NewTabController">
 
     <!-- Toolbar -->
@@ -27,26 +27,51 @@
             <padding>
                 <Insets bottom="5" left="5" right="5" top="5" />
             </padding>
+
+            <!-- Thanh điều hướng -->
             <HBox spacing="5">
                 <Button fx:id="backBtn" onAction="#back">
-               <graphic>
-                  <FontAwesomeIconView glyphName="BACKWARD" />
-               </graphic></Button>
+                    <graphic>
+                        <FontAwesomeIconView glyphName="BACKWARD" glyphSize="14" />
+                    </graphic>
+                </Button>
                 <Button fx:id="forwardBtn" onAction="#forward">
-               <graphic>
-                  <FontAwesomeIconView glyphName="FORWARD" />
-               </graphic></Button>
+                    <graphic>
+                        <FontAwesomeIconView glyphName="FORWARD" glyphSize="14" />
+                    </graphic>
+                </Button>
                 <Button fx:id="reloadBtn" onAction="#reload">
-               <graphic>
-                  <FontAwesomeIconView glyphName="REFRESH" />
-               </graphic></Button>
+                    <graphic>
+                        <FontAwesomeIconView glyphName="REFRESH" glyphSize="14" />
+                    </graphic>
+                </Button>
                 <Button fx:id="homeBtn" onAction="#home">
-               <graphic>
-                  <FontAwesomeIconView glyphName="HOME" />
-               </graphic></Button>
+                    <graphic>
+                        <FontAwesomeIconView glyphName="HOME" glyphSize="14" />
+                    </graphic>
+                </Button>
+
+                <!-- Ô nhập URL -->
                 <TextField fx:id="search" promptText="URL..." HBox.hgrow="ALWAYS" />
+
+                <!-- Nút đánh dấu (⭐) -->
+                <Button fx:id="bookmarkBtn" onAction="#addBookmark">
+                    <graphic>
+                        <FontAwesomeIconView glyphName="STAR" glyphSize="16" />
+                    </graphic>
+                </Button>
+
+                <!-- Nút menu -->
                 <Button fx:id="menuBtn" onAction="#toggleMenu" text="☰" />
             </HBox>
+
+            <!-- 🆕 Thanh nhóm thẻ (tab bar - thu nhỏ) -->
+            <HBox fx:id="tabBar" spacing="3" style="-fx-background-color: #f3f3f3;                      -fx-padding: 2 3;                      -fx-min-height: 20;                      -fx-pref-height: 20;">
+                <!-- Các nút thẻ sẽ được thêm động bằng code -->
+                <Button style="-fx-background-color: transparent;                            -fx-font-weight: bold;                            -fx-font-size: 10px;                            -fx-padding: 0 4;" text="+" />
+            </HBox>
+
+            <!-- Thanh tiến trình tải -->
             <ProgressBar fx:id="progress" maxWidth="Infinity" prefHeight="8.0" />
         </VBox>
     </top>
@@ -60,14 +85,10 @@
             <AnchorPane fx:id="mainBackground">
                 <children>
                     <!-- Layer 1: Ảnh nền responsive -->
-                    <Region styleClass="background-layer"
-                            AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
-                            AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+                    <Region styleClass="background-layer" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
 
                     <!-- Layer 2: Overlay gradient -->
-                    <AnchorPane styleClass="overlay-gradient"
-                                AnchorPane.topAnchor="0.0" AnchorPane.bottomAnchor="0.0"
-                                AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+                    <AnchorPane styleClass="overlay-gradient" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                     <!-- VBox chính để căn dọc các element, giãn theo chiều ngang (anchored) -->
                     <VBox spacing="20.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                         <children>

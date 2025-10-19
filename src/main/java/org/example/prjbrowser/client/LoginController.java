@@ -1,6 +1,7 @@
 package org.example.prjbrowser.client;
 
 import javafx.animation.TranslateTransition;
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -21,20 +22,19 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.example.prjbrowser.client.desginer.dialog;
 import org.example.prjbrowser.common.Message;
+import org.example.prjbrowser.model.AutoLoginService;
 import org.example.prjbrowser.model.Jbcrypt;
 import org.example.prjbrowser.model.database;
 
 import java.awt.*;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URL;
 import java.sql.*;
 import java.util.Date;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.ResourceBundle;
 
 public class LoginController implements Initializable {
@@ -128,6 +128,7 @@ public class LoginController implements Initializable {
     private double y = 0;
 
     private dialog dl = new dialog();
+    private final AutoLoginService Als = AutoLoginService.getInstance();
 
 
     @FXML
@@ -187,8 +188,9 @@ public class LoginController implements Initializable {
     }
 
     private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
-//        Socket socket = new Socket("localhost", 12345);
-        Socket socket = new Socket("192.168.56.1", 12345);
+        Socket socket = new Socket("localhost", 12345);
+//        Socket socket = new Socket("172.20.10.2", 12345);
+//        Socket socket = new Socket("192.168.56.1", 12345);
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
         ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 
@@ -296,7 +298,7 @@ public class LoginController implements Initializable {
     }
 
 
-    // ================== LOGIN ==================
+    // ========== LOGIN BUTTON ==========
     public void loginBtn() {
         try {
             Message request = new Message();
@@ -307,44 +309,98 @@ public class LoginController implements Initializable {
             Message response = sendRequest(request);
 
             if ("success".equals(response.get("status"))) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                dl.alertDialog(alert , "Thành công" , (String) response.get("message") , "thanhcong");
+                dl.alertDialog(new Alert(Alert.AlertType.INFORMATION),
+                        "Thành công", (String) response.get("message"), "thanhcong");
 
-
-                // lấy dữ liệu từ response
-                String id = (String) response.get("id");
-                String username = (String) response.get("username");
+                int id = (int) response.get("id");
+                String uname = (String) response.get("username");
                 String fullname = (String) response.get("fullname");
+                String token = (String) response.get("session_token");
 
-                // mở Browser
-                login.getScene().getWindow().hide();
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("/FXML/web-browser.fxml"));
-                Parent root = loader.load();
+                // ✅ Lưu session vào bộ nhớ và file
+                Als.saveSession(id, uname, fullname, token);
+                saveSessionToLocal(id, uname, fullname, token);
 
-                ClientController clientController = loader.getController();
-                clientController.Id(id);
-                clientController.fullName(fullname);
-                clientController.userName(username);
-                clientController.closeTab();
+                // ✅ Đóng form login
+                Stage currentStage = (Stage) login.getScene().getWindow();
+                currentStage.close();
 
-                Stage stage = new Stage();
-                stage.setScene(new Scene(root));
-                stage.setTitle("Night Wolf");
-                Image icon = new Image(getClass().getResourceAsStream("/Image/wolf.png"));
-                stage.getIcons().add(icon);
-                stage.show();
-
+                // ✅ Mở Browser
+                openBrowser(String.valueOf(id), uname, fullname);
 
             } else {
                 Alert alert = new Alert(Alert.AlertType.ERROR);
-                dl.alertDialog(alert , "Lỗi" , (String) response.get("message") , "thatbai");
-
+                alert.setHeaderText("Lỗi");
+                alert.setContentText((String) response.get("message"));
+                alert.showAndWait();
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
+    // ========== LƯU SESSION ==========
+    private void saveSessionToLocal(int id, String username, String fullname, String sessionToken) {
+        try {
+            Properties props = new Properties();
+            props.setProperty("id", String.valueOf(id));
+            props.setProperty("username", username);
+            props.setProperty("fullname", fullname);
+            props.setProperty("session_token", sessionToken);
+
+            try (FileOutputStream fos = new FileOutputStream("session.properties")) {
+                props.store(fos, "User session data");
+            }
+
+            System.out.println("✅ Session đã lưu vào file session.properties");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadSessionFromFile() {
+        File file = new File("session.properties");
+        if (file.exists()) {
+            try (FileInputStream fis = new FileInputStream(file)) {
+                Properties props = new Properties();
+                props.load(fis);
+
+                int id = Integer.parseInt(props.getProperty("id", "0"));
+                String username = props.getProperty("username");
+                String fullname = props.getProperty("fullname");
+                String token = props.getProperty("session_token");
+
+                if (token != null && !token.isEmpty()) {
+                    Als.saveSession(id, username, fullname, token);
+                    System.out.println("💾 Loaded session from file → " + username + " | " + fullname);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    // ========== MỞ BROWSER ==========
+    private void openBrowser(String id, String username, String fullname) throws IOException {
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/FXML/web-browser.fxml"));
+        Parent root = loader.load();
+
+        ClientController clientController = loader.getController();
+        clientController.Id(id);
+        clientController.userName(username);
+        clientController.fullName(fullname);
+        clientController.closeTab();
+
+        Stage stage = new Stage();
+        stage.setScene(new Scene(root));
+        stage.setTitle("Night Wolf");
+        stage.getIcons().add(new Image(getClass().getResourceAsStream("/Image/wolf.png")));
+        stage.show();
+
+        System.out.println("✅ Đã mở Browser cho user: " + username + " / " + fullname);
+    }
+
 
     public void openlink(){
         try{
@@ -364,6 +420,8 @@ public class LoginController implements Initializable {
         password.setVisible(true);
         password_show.setVisible(false);
     }
+
+
 
 
     @Override
@@ -386,6 +444,42 @@ public class LoginController implements Initializable {
                     throw new RuntimeException(e);
                 }
                 event.consume();
+            }
+        });
+// 1️⃣ Load session từ file trước
+        loadSessionFromFile();
+
+        // 2️⃣ Nếu có session → kiểm tra hợp lệ với server
+        Platform.runLater(() -> {
+            try {
+                if (Als.hasSession()) {
+                    System.out.println("🔹 Đã phát hiện session trong bộ nhớ: " + Als.getUsername());
+
+                    Message request = new Message();
+                    request.put("action", "validate_session");
+                    request.put("session_token", Als.getSessionToken());
+
+                    Message response = sendRequest(request);
+
+                    if ("success".equals(response.get("status"))) {
+                        System.out.println("✅ Session hợp lệ — tự động đăng nhập: " + Als.getUsername());
+                        Stage currentStage = (Stage) login.getScene().getWindow();
+                        currentStage.close();
+
+                        openBrowser(
+                                String.valueOf(Als.getUserId()),
+                                Als.getUsername(),
+                                Als.getFullname()
+                        );
+                    } else {
+                        System.out.println("⚠️ Session hết hạn — cần đăng nhập lại.");
+                        Als.clearSession();
+                    }
+                } else {
+                    System.out.println("⚠️ Chưa có session — chờ người dùng đăng nhập.");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         });
     }

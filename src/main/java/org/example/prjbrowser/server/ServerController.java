@@ -7,6 +7,7 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
@@ -40,11 +41,13 @@ public class ServerController implements Initializable {
         new Thread(() -> {
             try {
                 serverSocket = new ServerSocket(PORT);
+                InetAddress ip = InetAddress.getByName("172.20.10.1");
+                addLog("IP:"+ ip);
                 addLog("✅ Server đã khởi động tại cổng " + PORT);
 
                 while (!serverSocket.isClosed()) {
                     Socket socket = serverSocket.accept();
-                    addLog("🔗 Kết nối mới từ: " + socket.getInetAddress());
+//                    addLog("🔗 Kết nối mới từ: " + socket.getInetAddress());
 
                     ClientHandler handler = new ClientHandler(socket, this);
                     clientHandlers.add(handler);
