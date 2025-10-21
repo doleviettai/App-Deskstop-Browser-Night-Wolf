@@ -324,3 +324,73 @@
     -fx-padding: 10;                       /* padding bên trong */
 }
 
+/*===== bookmark ======*/
+.bookmark{
+        -fx-background-color: linear-gradient(to right, #ff9472, #f2709c);
+        -fx-background-radius: 10px;
+        -fx-border-color: transparent;
+        -fx-text-fill: white;
+        -fx-font-size: 10px;
+        -fx-font-weight: 600;
+        -fx-padding: 1 6 1 6;
+        -fx-cursor: hand;
+        -fx-min-height: 18;
+        -fx-pref-height: 18;
+        -fx-max-height: 18;
+        -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 0.5);
+}
+
+.bookmark-enter{
+            -fx-background-color: linear-gradient(to right, #f2709c, #ff9472);
+            -fx-background-radius: 10px;
+            -fx-border-color: #ffffff33;
+            -fx-text-fill: white;
+            -fx-font-size: 10px;
+            -fx-font-weight: 600;
+            -fx-padding: 1 6 1 6;
+            -fx-cursor: hand;
+            -fx-min-height: 18;
+            -fx-pref-height: 18;
+            -fx-max-height: 18;
+            -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 1);
+            -fx-scale-x: 1.05;
+            -fx-scale-y: 1.05;
+}
+
+.bookmark-exited{
+            -fx-background-color: linear-gradient(to right, #ff9472, #f2709c);
+            -fx-background-radius: 10px;
+            -fx-border-color: transparent;
+            -fx-text-fill: white;
+            -fx-font-size: 10px;
+            -fx-font-weight: 600;
+            -fx-padding: 1 6 1 6;
+            -fx-cursor: hand;
+            -fx-min-height: 18;
+            -fx-pref-height: 18;
+            -fx-max-height: 18;
+            -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 0.5);
+            -fx-scale-x: 1.0;
+            -fx-scale-y: 1.0;
+}
+
+.scroll-pane {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.scroll-pane .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-height: 6px;
+}
+
+.scroll-pane .scroll-bar:horizontal .thumb {
+    -fx-background-color: derive(#c0c0c0, -20%);
+    -fx-background-radius: 5;
+}
+
+.scroll-pane .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: derive(#a0a0a0, -20%);
+}
+
+

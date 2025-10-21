@@ -88,6 +88,7 @@ public class ClientController implements Initializable {
             // Lấy controller của tab mới
             NewTabController controller = loader.getController();
             controller.receiverNickName(id,username, fullName);
+            controller.clearBookmarksUI();
             controller.loadUserBookmarks();
 
             Tab newTab = new Tab(title, root);

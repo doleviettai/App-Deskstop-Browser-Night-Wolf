@@ -21,6 +21,7 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -41,14 +42,15 @@ import java.net.Socket;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Map;
-import java.util.ResourceBundle;
+import java.util.*;
 
 public class NewTabController implements Initializable {
 
     @FXML
     public TextField search;
+
+    @FXML
+    public ScrollPane tabScrollPane;
 
     @FXML
     private BorderPane main_browser;
@@ -308,6 +310,7 @@ public class NewTabController implements Initializable {
         return stackRoot.getScene() != null ? stackRoot.getScene().getWidth() : 1200;
     }
 
+//    =======================Xem lịch sử===============
     public void list_History() {
         // 1️⃣ Kiểm tra đăng nhập
         boolean notLoggedIn = currentId == null
@@ -383,7 +386,7 @@ public class NewTabController implements Initializable {
     }
 
 
-
+//==========================login-logout================================
     public void Login_Logout() {
         boolean notLoggedIn = currentUsername == null || currentFullname == null || currentUsername.isEmpty();
 
@@ -457,6 +460,8 @@ public class NewTabController implements Initializable {
         }
     }
 
+
+//=======================Ghim thẻ trang============================================
     public void loadUserBookmarks() {
         if (currentId == null || currentId.isEmpty()) return;
 
@@ -469,11 +474,34 @@ public class NewTabController implements Initializable {
 
             if (res != null && "success".equals(res.get("status"))) {
                 List<Map<String, Object>> bookmarks = (List<Map<String, Object>>) res.get("bookmarks");
+
+                // Duyệt từng bookmark từ server
                 for (Map<String, Object> bm : bookmarks) {
                     String title = bm.get("title").toString();
                     String url = bm.get("url").toString();
-                    addBookmarkToTabBar(title, url); // tái sử dụng hàm UI
+                    String normalizedUrl = normalizeUrl(url);
+
+                    // 🔹 Kiểm tra trong tabBar xem đã có URL này chưa
+                    boolean alreadyExists = false;
+                    for (Node node : tabBar.getChildren()) {
+                        if (node instanceof Button btn && btn.getUserData() != null) {
+                            String existingUrl = normalizeUrl(btn.getUserData().toString());
+                            if (existingUrl.equals(normalizedUrl)) {
+                                alreadyExists = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 🔸 Nếu chưa có trong tabBar → thêm mới
+                    if (!alreadyExists) {
+                        addBookmarkToTabBar(title, normalizedUrl);
+                    } else {
+                        System.out.println("⏩ Bỏ qua bookmark trùng: " + normalizedUrl);
+                    }
                 }
+
+                System.out.println("⭐ Bookmark đã load xong cho user " + currentId);
             } else {
                 System.out.println("⚠️ Không thể tải bookmark của user");
             }
@@ -481,6 +509,12 @@ public class NewTabController implements Initializable {
             ex.printStackTrace();
         }
     }
+
+    public void clearBookmarksUI() {
+        tabBar.getChildren().clear();
+    }
+
+
 
 
     // gọi khi nhấn nút bookmark
@@ -596,62 +630,38 @@ public class NewTabController implements Initializable {
     private void addBookmarkToTabBar(String title, String url) {
         if (tabBar == null) return;
 
-        Button bookmarkButton = new Button(title);
+        // Giới hạn độ dài hiển thị của title
+        String displayTitle = title;
+        int maxLength = 15; // giới hạn ký tự hiển thị
+        if (title.length() > maxLength) {
+            displayTitle = title.substring(0, maxLength - 3) + "...";
+        }
 
-        // 🔹 Style cơ bản (sửa semi-bold → 600)
-        bookmarkButton.setStyle("""
-        -fx-background-color: linear-gradient(to right, #ff9472, #f2709c);
-        -fx-background-radius: 10px;
-        -fx-border-color: transparent;
-        -fx-text-fill: white;
-        -fx-font-size: 10px;
-        -fx-font-weight: 600;
-        -fx-padding: 1 6 1 6;
-        -fx-cursor: hand;
-        -fx-min-height: 18;
-        -fx-pref-height: 18;
-        -fx-max-height: 18;
-        -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 0.5);
-    """);
+        Button bookmarkButton = new Button(displayTitle);
+        bookmarkButton.getStyleClass().add("bookmark");
 
-        bookmarkButton.setOnMouseEntered(e ->
-                bookmarkButton.setStyle("""
-            -fx-background-color: linear-gradient(to right, #f2709c, #ff9472);
-            -fx-background-radius: 10px;
-            -fx-border-color: #ffffff33;
-            -fx-text-fill: white;
-            -fx-font-size: 10px;
-            -fx-font-weight: 600;
-            -fx-padding: 1 6 1 6;
-            -fx-cursor: hand;
-            -fx-min-height: 18;
-            -fx-pref-height: 18;
-            -fx-max-height: 18;
-            -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 1);
-            -fx-scale-x: 1.05;
-            -fx-scale-y: 1.05;
-        """)
-        );
+        // Thêm tooltip hiển thị đầy đủ title khi hover
+        Tooltip tooltip = new Tooltip(title);
+        tooltip.setShowDelay(Duration.millis(100));
+        Tooltip.install(bookmarkButton, tooltip);
 
-        bookmarkButton.setOnMouseExited(e ->
-                bookmarkButton.setStyle("""
-            -fx-background-color: linear-gradient(to right, #ff9472, #f2709c);
-            -fx-background-radius: 10px;
-            -fx-border-color: transparent;
-            -fx-text-fill: white;
-            -fx-font-size: 10px;
-            -fx-font-weight: 600;
-            -fx-padding: 1 6 1 6;
-            -fx-cursor: hand;
-            -fx-min-height: 18;
-            -fx-pref-height: 18;
-            -fx-max-height: 18;
-            -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 0.5);
-            -fx-scale-x: 1.0;
-            -fx-scale-y: 1.0;
-        """)
-        );
+        // Hover vào
+        bookmarkButton.setOnMouseEntered(e -> {
+            bookmarkButton.getStyleClass().remove("bookmark-exited");
+            if (!bookmarkButton.getStyleClass().contains("bookmark-enter")) {
+                bookmarkButton.getStyleClass().add("bookmark-enter");
+            }
+        });
 
+        // Hover ra
+        bookmarkButton.setOnMouseExited(e -> {
+            bookmarkButton.getStyleClass().remove("bookmark-enter");
+            if (!bookmarkButton.getStyleClass().contains("bookmark-exited")) {
+                bookmarkButton.getStyleClass().add("bookmark-exited");
+            }
+        });
+
+        // Click trái → mở trang
         bookmarkButton.setOnAction(e -> {
             engine.load(url);
             mainBackground.setVisible(false);
@@ -660,9 +670,48 @@ public class NewTabController implements Initializable {
             setCurrentPageTitle(title);
         });
 
+        // Click phải → hiện menu xóa
+        bookmarkButton.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.SECONDARY) { // chuột phải
+                ContextMenu menu = new ContextMenu();
+                MenuItem deleteItem = new MenuItem("❌ Bỏ ghim thẻ này");
+
+                deleteItem.setOnAction(ev -> {
+                    try {
+                        Message req = new Message();
+                        req.put("action", "delete_bookmark");
+                        req.put("user_id", currentId);
+                        req.put("url", url);
+
+                        Message res = sendRequest(req);
+
+                        if (res != null && "success".equals(res.get("status"))) {
+                            tabBar.getChildren().remove(bookmarkButton); // xóa khỏi giao diện
+                            System.out.println("🗑️ Đã xóa bookmark: " + title);
+                        } else {
+                            System.out.println("⚠️ Không thể xóa bookmark: " + title);
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                });
+
+                menu.getItems().add(deleteItem);
+                menu.show(bookmarkButton, e.getScreenX(), e.getScreenY());
+            }
+        });
+
         int insertIndex = Math.max(0, tabBar.getChildren().size() - 1);
         tabBar.getChildren().add(insertIndex, bookmarkButton);
+
+        // Cuộn đến cuối để thấy thẻ mới
+        Platform.runLater(() -> {
+            ScrollPane scrollPane = (ScrollPane) tabBar.getParent();
+            scrollPane.setHvalue(1.0); // cuộn sang phải
+        });
     }
+
+
 
 
 
@@ -678,6 +727,7 @@ public class NewTabController implements Initializable {
         return webView;
     }
 
+//    =====================================================================================
     @FXML
     private void back(ActionEvent e) {
         WebHistory history = engine.getHistory();
@@ -767,6 +817,7 @@ public class NewTabController implements Initializable {
         }
     }
 
+    // responsive cho bảng ở xem lịch sử
     private void tableHistoryBroserReponsive(){
         // Khi bảng thay đổi kích thước, chia tỉ lệ cột
         table_history_browser.widthProperty().addListener((obs, oldWidth, newWidth) -> {

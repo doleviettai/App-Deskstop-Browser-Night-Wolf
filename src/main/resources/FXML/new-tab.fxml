@@ -19,6 +19,7 @@
 <?import javafx.scene.text.Font?>
 <?import javafx.scene.web.WebView?>
 
+<?import javafx.scene.control.ScrollPane?>
 <BorderPane fx:id="main_browser" styleClass="to_top" stylesheets="@../CSS/dasboardMiniMark.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.client.NewTabController">
 
     <!-- Toolbar -->
@@ -65,11 +66,29 @@
                 <Button fx:id="menuBtn" onAction="#toggleMenu" text="☰" />
             </HBox>
 
-            <!-- 🆕 Thanh nhóm thẻ (tab bar - thu nhỏ) -->
-            <HBox fx:id="tabBar" spacing="3" style="-fx-background-color: #f3f3f3;                      -fx-padding: 2 3;                      -fx-min-height: 20;                      -fx-pref-height: 20;">
-                <!-- Các nút thẻ sẽ được thêm động bằng code -->
-                <Button style="-fx-background-color: transparent;                            -fx-font-weight: bold;                            -fx-font-size: 10px;                            -fx-padding: 0 4;" text="+" />
-            </HBox>
+            <!-- 🆕 Thanh nhóm thẻ có cuộn ngang -->
+<!--            <ScrollPane fx:id="tabScrollPane"-->
+<!--                        hbarPolicy="AS_NEEDED"-->
+<!--                        vbarPolicy="NEVER"-->
+<!--                        fitToHeight="true"-->
+<!--                        style="-fx-background-color: transparent; -fx-border-color: transparent;">-->
+<!--                <content>-->
+                    <HBox fx:id="tabBar"
+                          spacing="3"
+                          style="-fx-background-color: #f3f3f3;
+                     -fx-padding: 2 3;
+                     -fx-min-height: 24;
+                     -fx-pref-height: 20;">
+                        <!-- Các nút thẻ sẽ được thêm động bằng code -->
+                        <Button style="-fx-background-color: transparent;
+                           -fx-font-weight: bold;
+                           -fx-font-size: 10px;
+                           -fx-padding: 0 4;"
+                                text="+" />
+                    </HBox>
+<!--                </content>-->
+<!--            </ScrollPane>-->
+
 
             <!-- Thanh tiến trình tải -->
             <ProgressBar fx:id="progress" maxWidth="Infinity" prefHeight="8.0" />

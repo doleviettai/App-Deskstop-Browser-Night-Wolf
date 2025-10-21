@@ -369,6 +369,7 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+
                 case "add_bookmark": {
                     try {
                         // 🔹 1. Lấy dữ liệu từ request
@@ -462,6 +463,55 @@ public class ClientHandler implements Runnable {
                         res.put("success", false);
                         res.put("message", e.getMessage());
                         e.printStackTrace();
+                    }
+                    break;
+                }
+
+                case "delete_bookmark": {
+                    try {
+                        int userId = Integer.parseInt(req.get("user_id").toString());
+                        String url = req.get("url").toString();
+
+                        // Lấy id của url trước
+                        String getUrlIdSql = "SELECT id FROM urls WHERE url = ?";
+                        PreparedStatement ps1 = conn.prepareStatement(getUrlIdSql);
+                        ps1.setString(1, url);
+                        ResultSet rs = ps1.executeQuery();
+
+                        int urlId = -1;
+                        if (rs.next()) {
+                            urlId = rs.getInt("id");
+                        }
+                        rs.close();
+                        ps1.close();
+
+                        if (urlId == -1) {
+                            res.put("status", "error");
+                            res.put("message", "URL không tồn tại trong CSDL");
+                            break;
+                        }
+
+                        // Xóa khỏi bảng bookmarks
+                        String deleteSql = "DELETE FROM bookmarks WHERE user_id = ? AND url_id = ?";
+                        PreparedStatement ps2 = conn.prepareStatement(deleteSql);
+                        ps2.setInt(1, userId);
+                        ps2.setInt(2, urlId);
+
+                        int rows = ps2.executeUpdate();
+                        ps2.close();
+
+                        if (rows > 0) {
+                            res.put("status", "success");
+                            res.put("message", "Đã xóa bookmark thành công");
+                            System.out.println("🗑️ User " + userId + " đã xóa bookmark url_id=" + urlId);
+                        } else {
+                            res.put("status", "error");
+                            res.put("message", "Không tìm thấy bookmark để xóa");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        res.put("status", "error");
+                        res.put("message", e.getMessage());
                     }
                     break;
                 }
