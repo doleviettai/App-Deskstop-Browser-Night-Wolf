@@ -1,8 +1,6 @@
 package org.example.prjbrowser.client;
 
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
-import javafx.animation.TranslateTransition;
+import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -22,6 +20,7 @@ import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -36,6 +35,9 @@ import org.example.prjbrowser.client.desginer.dialog;
 import org.example.prjbrowser.common.Message;
 import org.example.prjbrowser.model.AutoLoginService;
 import org.example.prjbrowser.model.HistoryItem;
+import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.model.StyleSpans;
+import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.io.*;
 import java.net.Socket;
@@ -43,6 +45,8 @@ import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class NewTabController implements Initializable {
 
@@ -114,6 +118,25 @@ public class NewTabController implements Initializable {
     private Button bookmarkBtn;
     @FXML
     private HBox tabBar;
+
+    @FXML
+    private AnchorPane browserAlert;
+
+    @FXML
+    private Label alertMessage;
+
+    private Timeline alertTimeline;
+
+    @FXML
+    private AnchorPane htmlInspector;
+
+    @FXML
+    private CodeArea htmlCodeArea;
+
+    @FXML
+    private SplitPane splitPane;
+
+    private boolean inspectorVisible = false;
 
     private WebEngine engine;
     private double zoomLevel = 1.0;
@@ -209,32 +232,38 @@ public class NewTabController implements Initializable {
         String inputUrl = search.getText().trim();
         if (inputUrl.isEmpty()) return;
 
-        if (!inputUrl.startsWith("http")) {
-            inputUrl = "https://" + inputUrl;
-        }
-
-        final String url = normalizeUrl(inputUrl); // final để capture an toàn
+        final String url = normalizeUrl(inputUrl);
         atHome = false;
         mainBackground.setVisible(false);
         historyBrowser.setVisible(false);
         webView.setVisible(true);
 
+        WebEngine engine = webView.getEngine();
+
+        // ⚙️ Giả lập trình duyệt Chrome để tương thích tốt hơn với HTTPS
+        engine.setUserAgent(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                        "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                        "Chrome/120.0.0.0 Safari/537.36"
+        );
+
         Worker<Void> worker = engine.getLoadWorker();
 
-        // One-shot listener: sẽ tự remove khi SUCCEEDED
+        // Lắng nghe trạng thái tải trang
         ChangeListener<Worker.State> oneShot = new ChangeListener<>() {
             @Override
-            public void changed(ObservableValue<? extends Worker.State> obs, Worker.State oldState, Worker.State newState) {
+            public void changed(ObservableValue<? extends Worker.State> obs,
+                                Worker.State oldState,
+                                Worker.State newState) {
                 if (newState == Worker.State.SUCCEEDED) {
-                    // remove listener ngay để tránh gọi nhiều lần
+                    // ✅ Load thành công
                     worker.stateProperty().removeListener(this);
 
-                    // Lấy title ổn định
                     String title = engine.getTitle();
                     if (title == null || title.isEmpty()) title = "Unknown";
                     setCurrentPageTitle(title);
 
-                    // Nếu đã login thì gửi lưu lịch sử
+                    // Gửi lưu lịch sử nếu có đăng nhập
                     if (currentId != null && currentUsername != null) {
                         try {
                             Message request = new Message();
@@ -243,41 +272,100 @@ public class NewTabController implements Initializable {
                             request.getData().put("url", url);
                             request.getData().put("title", title);
                             request.getData().put("hidden", false);
-
                             sendRequest(request);
                         } catch (Exception ex) {
                             ex.printStackTrace();
                         }
                     }
                 }
+                // ❌ Load thất bại → hiển thị trang lỗi
+                else if (newState == Worker.State.FAILED || newState == Worker.State.CANCELLED) {
+                    worker.stateProperty().removeListener(this);
+
+                    System.out.println("⚠️ Không thể tải trang: " + url);
+                    Platform.runLater(() -> {
+                        // ⚠️ Giữ nguyên URL người dùng nhập trong TextField
+                        search.setText(url);
+
+                        // ⚠️ Load trang lỗi nhưng KHÔNG đổi URL trong thanh địa chỉ
+                        engine.loadContent(
+                                "<iframe src='https://doleviettai.github.io/ViewWebError/' " +
+                                        "style='width:100%;height:100%;border:none;'></iframe>"
+                        );
+
+                        setCurrentPageTitle("Không thể truy cập trang web này");
+//                        showBrowserAlert("Không thể truy cập trang web này");
+                    });
+                }
             }
         };
 
-        // Đăng ký listener 1 lần trước khi load
+        // Gắn listener
         worker.stateProperty().addListener(oneShot);
 
-        // Bắt đầu load
-        engine.load(url);
+        // Xử lý ngoại lệ khi load trang
+        worker.exceptionProperty().addListener((obs, old, ex) -> {
+            if (ex != null) {
+                System.out.println("❌ Exception khi load trang: " + ex.getMessage());
+                Platform.runLater(() -> {
+                    search.setText(url);
+                    engine.loadContent(
+                            "<iframe src='https://doleviettai.github.io/ViewWebError/' " +
+                                    "style='width:100%;height:100%;border:none;'></iframe>"
+                    );
+                    setCurrentPageTitle("Không thể truy cập trang web này");
+                });
+            }
+        });
+
+        engine.setOnError(e -> {
+            System.out.println("❌ WebView Error: " + e.getMessage());
+            Platform.runLater(() -> {
+                search.setText(url);
+                engine.loadContent(
+                        "<iframe src='https://doleviettai.github.io/ViewWebError/' " +
+                                "style='width:100%;height:100%;border:none;'></iframe>"
+                );
+                setCurrentPageTitle("Không thể truy cập trang web này");
+            });
+        });
+
+        // Bắt đầu tải trang
+        try {
+            engine.load(url);
+        } catch (Exception ex) {
+            System.out.println("⚠️ URL load error: " + ex.getMessage());
+            search.setText(url);
+            engine.loadContent(
+                    "<iframe src='https://doleviettai.github.io/ViewWebError/' " +
+                            "style='width:100%;height:100%;border:none;'></iframe>"
+            );
+            setCurrentPageTitle("Không thể truy cập trang web này");
+        }
     }
 
-    public String normalizeUrl(String url) {
-        if (url == null) return "";
-        url = url.trim().toLowerCase();
 
-        // Thêm https nếu thiếu
-        if (!url.startsWith("http")) {
+    // ============================
+    // 🔧 Chuẩn hóa URL an toàn
+    // ============================
+    public String normalizeUrl(String url) {
+        if (url == null || url.trim().isEmpty()) return "";
+        url = url.trim();
+
+        // Nếu người dùng chỉ nhập domain thì thêm https://
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
             url = "https://" + url;
         }
 
-        // Bỏ slash cuối
-        if (url.endsWith("/")) {
+        // Bỏ dấu "/" cuối cùng (nếu có)
+        if (url.endsWith("/") && url.length() > 8) {
             url = url.substring(0, url.length() - 1);
         }
 
-        // Bỏ www.
-        url = url.replace("www.", "");
         return url;
     }
+
+
 
 
 
@@ -355,16 +443,117 @@ public class NewTabController implements Initializable {
                     Platform.runLater(() -> {
                         ObservableList<HistoryItem> historyData = FXCollections.observableArrayList();
                         for (Map<String, String> row : data) {
-                            historyData.add(new HistoryItem(
-                                    row.get("url"),
-                                    row.get("visit_time")
-                            ));
+                            int id = Integer.parseInt(row.get("id"));
+                            historyData.add(new HistoryItem(id, row.get("url"), row.get("visit_time")));
                         }
 
-                        // Liên kết dữ liệu vào TableView
                         table_history_browser.setItems(historyData);
-                        url_col_table.setCellValueFactory(new PropertyValueFactory<HistoryItem , String>("url"));
-                        time_col_table.setCellValueFactory(new PropertyValueFactory<HistoryItem , String>("visitTime"));
+                        url_col_table.setCellValueFactory(new PropertyValueFactory<>("url"));
+                        time_col_table.setCellValueFactory(new PropertyValueFactory<>("visitTime"));
+                    });
+
+
+                } else {
+                    String msg = (res != null) ? (String) res.get("message") : "Không có phản hồi từ server";
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        dl.alertDialog(alert, "Lỗi", msg, "thatbai");
+                    });
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    dl.alertDialog(alert, "Lỗi", "Không thể kết nối đến server: " + ex.getMessage(), "thatbai");
+                });
+            }
+        }).start();
+    }
+
+    public void deleteSelectedHistory() {
+        HistoryItem selected = table_history_browser.getSelectionModel().getSelectedItem();
+
+        if (selected == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            dl.alertDialog(alert, "Cảnh báo", "Vui lòng chọn 1 mục để xóa!", "thatbai");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Xác nhận xóa");
+        confirm.setHeaderText("Bạn có chắc muốn xóa lịch sử này?");
+        confirm.setContentText("URL: " + selected.getUrl());
+
+        Optional<ButtonType> result = confirm.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) return;
+
+        new Thread(() -> {
+            try {
+                Message req = new Message();
+                req.put("action", "delete_history_user");
+                req.put("visit_id", selected.getId()); // gửi id
+
+                Message res = sendRequest(req);
+
+                if (res != null && "success".equals(res.get("status"))) {
+                    Platform.runLater(() -> {
+                        table_history_browser.getItems().remove(selected);
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        dl.alertDialog(alert, "Thành công", (String) res.get("message"), "thanhcong");
+                    });
+                } else {
+                    String msg = (res != null) ? (String) res.get("message") : "Không có phản hồi từ server";
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        dl.alertDialog(alert, "Lỗi", msg, "thatbai");
+                    });
+                }
+
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    dl.alertDialog(alert, "Lỗi", "Không thể kết nối đến server: " + ex.getMessage(), "thatbai");
+                });
+            }
+        }).start();
+    }
+
+
+    public void refreshHistory() {
+        if (currentId == null) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            dl.alertDialog(alert, "Lỗi", "Người dùng chưa đăng nhập.", "thatbai");
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                // Tạo message gửi lên server
+                Message req = new Message();
+                req.put("action", "show_history_user");
+                req.put("user_id", currentId);
+
+                // Gửi yêu cầu và nhận phản hồi
+                Message res = sendRequest(req);
+
+                if (res != null && "success".equals(res.get("status"))) {
+                    List<Map<String, String>> data = (List<Map<String, String>>) res.get("data");
+
+                    Platform.runLater(() -> {
+                        ObservableList<HistoryItem> historyData = FXCollections.observableArrayList();
+                        for (Map<String, String> row : data) {
+                            int id = Integer.parseInt(row.get("id"));
+                            historyData.add(new HistoryItem(id, row.get("url"), row.get("visit_time")));
+                        }
+
+                        table_history_browser.setItems(historyData);
+                        url_col_table.setCellValueFactory(new PropertyValueFactory<>("url"));
+                        time_col_table.setCellValueFactory(new PropertyValueFactory<>("visitTime"));
+
+                        // Thông báo nhỏ sau khi refresh
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        dl.alertDialog(alert, "Cập nhật", "Đã làm mới lịch sử duyệt web", "thanhcong");
                     });
 
                 } else {
@@ -386,7 +575,8 @@ public class NewTabController implements Initializable {
     }
 
 
-//==========================login-logout================================
+
+    //==========================login-logout================================
     public void Login_Logout() {
         boolean notLoggedIn = currentUsername == null || currentFullname == null || currentUsername.isEmpty();
 
@@ -727,7 +917,93 @@ public class NewTabController implements Initializable {
         return webView;
     }
 
-//    =====================================================================================
+//    ====================================Kiểm tra html=======================================
+    // Regex để highlight HTML
+    private static final Pattern HTML_PATTERN = Pattern.compile(
+            "(?<TAG></?\\w+)|(?<ATTRIBUTE>\\w+)=|(?<STRING>\"[^\"]*\")"
+    );
+    private void setupContextMenu() {
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem inspectItem = new MenuItem("🧩 Kiểm tra mã HTML");
+        contextMenu.getItems().add(inspectItem);
+
+        inspectItem.setOnAction(e -> toggleHtmlInspector());
+
+        webView.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
+            if (event.getButton() == MouseButton.SECONDARY) {
+                contextMenu.show(webView, event.getScreenX(), event.getScreenY());
+            } else {
+                contextMenu.hide();
+                if (inspectorVisible && event.getButton() == MouseButton.PRIMARY) {
+                    hideHtmlInspector();
+                }
+            }
+        });
+    }
+
+    private void toggleHtmlInspector() {
+        if (inspectorVisible) {
+            hideHtmlInspector();
+        } else {
+            showHtmlInspector();
+        }
+    }
+
+    private void showHtmlInspector() {
+        try {
+            String html = (String) engine.executeScript("document.documentElement.outerHTML");
+            htmlCodeArea.replaceText(html);
+
+            // Áp dụng highlight
+            htmlCodeArea.setStyleSpans(0, computeHighlighting(html));
+
+            // Hiện inspector bằng hiệu ứng trượt
+            Timeline slideUp = new Timeline(
+                    new KeyFrame(Duration.millis(0), new KeyValue(splitPane.getDividers().get(0).positionProperty(), 1.0)),
+                    new KeyFrame(Duration.millis(300), new KeyValue(splitPane.getDividers().get(0).positionProperty(), 0.7))
+            );
+            slideUp.play();
+
+            inspectorVisible = true;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private void hideHtmlInspector() {
+        Timeline slideDown = new Timeline(
+                new KeyFrame(Duration.millis(0), new KeyValue(splitPane.getDividers().get(0).positionProperty(), splitPane.getDividers().get(0).getPosition())),
+                new KeyFrame(Duration.millis(300), new KeyValue(splitPane.getDividers().get(0).positionProperty(), 1.0))
+        );
+        slideDown.play();
+
+        inspectorVisible = false;
+    }
+
+    /**
+     * Áp dụng highlight dựa trên regex HTML
+     */
+    private StyleSpans<? extends Collection<String>> computeHighlighting(String text) {
+        Matcher matcher = HTML_PATTERN.matcher(text);
+        int lastKwEnd = 0;
+        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+
+        while (matcher.find()) {
+            String styleClass =
+                    matcher.group("TAG") != null ? "tag" :
+                            matcher.group("ATTRIBUTE") != null ? "attribute" :
+                                    matcher.group("STRING") != null ? "string" : null;
+
+            assert styleClass != null;
+            spansBuilder.add(java.util.Collections.emptyList(), matcher.start() - lastKwEnd);
+            spansBuilder.add(java.util.Collections.singleton(styleClass), matcher.end() - matcher.start());
+            lastKwEnd = matcher.end();
+        }
+        spansBuilder.add(java.util.Collections.emptyList(), text.length() - lastKwEnd);
+        return spansBuilder.create();
+    }
+
+    //=================================================================================
     @FXML
     private void back(ActionEvent e) {
         WebHistory history = engine.getHistory();
@@ -817,6 +1093,75 @@ public class NewTabController implements Initializable {
         }
     }
 
+    // ====================================
+// ⚡ Hiển thị thông báo nổi của trình duyệt
+// ====================================
+    public void showBrowserAlert(String message) {
+        if (browserAlert == null || alertMessage == null) return;
+
+        Platform.runLater(() -> {
+            alertMessage.setText(message);
+            browserAlert.setVisible(true);
+            browserAlert.setOpacity(0);
+
+            // Vị trí ban đầu: trượt nhẹ từ dưới lên
+            browserAlert.setTranslateY(30);
+
+            // Hiệu ứng hiện ra (fade + slide)
+            FadeTransition fadeIn = new FadeTransition(Duration.millis(250), browserAlert);
+            fadeIn.setFromValue(0);
+            fadeIn.setToValue(1);
+
+            TranslateTransition slideUp = new TranslateTransition(Duration.millis(250), browserAlert);
+            slideUp.setFromY(30);
+            slideUp.setToY(0);
+
+            ParallelTransition showAnim = new ParallelTransition(fadeIn, slideUp);
+            showAnim.play();
+
+            // Nếu đang có alert trước đó, dừng lại
+            if (alertTimeline != null) alertTimeline.stop();
+
+            // Tự động ẩn sau 3 giây
+            alertTimeline = new Timeline(
+                    new KeyFrame(Duration.seconds(3), e -> hideBrowserAlert())
+            );
+            alertTimeline.play();
+        });
+    }
+
+    // ====================================
+// 🕶️ Ẩn alert với hiệu ứng mờ dần + trượt xuống
+// ====================================
+    private void hideBrowserAlert() {
+        if (browserAlert == null) return;
+
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(300), browserAlert);
+        fadeOut.setFromValue(1);
+        fadeOut.setToValue(0);
+
+        TranslateTransition slideDown = new TranslateTransition(Duration.millis(300), browserAlert);
+        slideDown.setFromY(0);
+        slideDown.setToY(20);
+
+        ParallelTransition hideAnim = new ParallelTransition(fadeOut, slideDown);
+        hideAnim.setOnFinished(e -> {
+            browserAlert.setVisible(false);
+            browserAlert.setTranslateY(0);
+        });
+        hideAnim.play();
+    }
+
+    // ====================================
+// 🧩 Khởi tạo alert (gọi 1 lần khi load giao diện)
+// ====================================
+    private void initializeBrowserAlert() {
+        browserAlert.setVisible(false);
+        browserAlert.setOpacity(0);
+        alertMessage.setText("");
+    }
+
+
     // responsive cho bảng ở xem lịch sử
     private void tableHistoryBroserReponsive(){
         // Khi bảng thay đổi kích thước, chia tỉ lệ cột
@@ -835,6 +1180,26 @@ public class NewTabController implements Initializable {
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
         engine = webView.getEngine();
+
+        // --- Xử lý alert() từ JavaScript ---
+        engine.setOnAlert(event -> {
+            Platform.runLater(() -> {
+                String message = event.getData();
+                showBrowserAlert("🔔 " + message);
+            });
+        });
+
+        // --- (Tuỳ chọn) Xử lý confirm() ---
+        engine.setConfirmHandler(message -> {
+            Platform.runLater(() -> showBrowserAlert("❓ " + message));
+            return true; // giả định người dùng bấm OK
+        });
+
+        // --- (Tuỳ chọn) Xử lý prompt() ---
+        engine.setPromptHandler(param -> {
+            Platform.runLater(() -> showBrowserAlert("💬 " + param.getMessage()));
+            return ""; // không nhập gì
+        });
 
         tableHistoryBroserReponsive();
         TimeChay();
@@ -865,6 +1230,8 @@ public class NewTabController implements Initializable {
 
         // Load mặc định Google
 //        engine.load("https://www.google.com");
+        setupContextMenu();
+        initializeBrowserAlert();
 
         AutoLoginService autoLogin = AutoLoginService.getInstance();
 

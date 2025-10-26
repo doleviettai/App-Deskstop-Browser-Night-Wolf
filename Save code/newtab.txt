@@ -1,0 +1,74 @@
+
+public void loadUrl() {
+        String inputUrl = search.getText().trim();
+        if (inputUrl.isEmpty()) return;
+
+        if (!inputUrl.startsWith("http")) {
+            inputUrl = "https://" + inputUrl;
+        }
+
+        final String url = normalizeUrl(inputUrl); // final để capture an toàn
+        atHome = false;
+        mainBackground.setVisible(false);
+        historyBrowser.setVisible(false);
+        webView.setVisible(true);
+
+        Worker<Void> worker = engine.getLoadWorker();
+
+        // One-shot listener: sẽ tự remove khi SUCCEEDED
+        ChangeListener<Worker.State> oneShot = new ChangeListener<>() {
+            @Override
+            public void changed(ObservableValue<? extends Worker.State> obs, Worker.State oldState, Worker.State newState) {
+                if (newState == Worker.State.SUCCEEDED) {
+                    // remove listener ngay để tránh gọi nhiều lần
+                    worker.stateProperty().removeListener(this);
+
+                    // Lấy title ổn định
+                    String title = engine.getTitle();
+                    if (title == null || title.isEmpty()) title = "Unknown";
+                    setCurrentPageTitle(title);
+
+                    // Nếu đã login thì gửi lưu lịch sử
+                    if (currentId != null && currentUsername != null) {
+                        try {
+                            Message request = new Message();
+                            request.getData().put("action", "add_visit");
+                            request.getData().put("user_id", currentId);
+                            request.getData().put("url", url);
+                            request.getData().put("title", title);
+                            request.getData().put("hidden", false);
+
+                            sendRequest(request);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                }
+            }
+        };
+
+        // Đăng ký listener 1 lần trước khi load
+        worker.stateProperty().addListener(oneShot);
+
+        // Bắt đầu load
+        engine.load(url);
+    }
+
+    public String normalizeUrl(String url) {
+        if (url == null) return "";
+        url = url.trim().toLowerCase();
+
+        // Thêm https nếu thiếu
+        if (!url.startsWith("http")) {
+            url = "https://" + url;
+        }
+
+        // Bỏ slash cuối
+        if (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+
+        // Bỏ www.
+        url = url.replace("www.", "");
+        return url;
+    }

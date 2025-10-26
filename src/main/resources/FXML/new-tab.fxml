@@ -20,6 +20,8 @@
 <?import javafx.scene.web.WebView?>
 
 <?import javafx.scene.control.ScrollPane?>
+<?import org.fxmisc.richtext.CodeArea?>
+<?import javafx.scene.control.SplitPane?>
 <BorderPane fx:id="main_browser" styleClass="to_top" stylesheets="@../CSS/dasboardMiniMark.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.client.NewTabController">
 
     <!-- Toolbar -->
@@ -99,7 +101,58 @@
     <center>
         <StackPane fx:id="stackRoot">
             <!-- WebView chính -->
-            <WebView fx:id="webView" visible="false" />
+            <!-- SplitPane chứa WebView và vùng xem mã HTML -->
+            <SplitPane fx:id="splitPane"
+                       orientation="VERTICAL"
+                       dividerPositions="1.0"> <!-- ban đầu WebView chiếm hết -->
+                <!-- Phần hiển thị web -->
+                <WebView fx:id="webView" />
+
+                <!-- Phần xem mã nguồn HTML (ẩn ban đầu bằng kích thước) -->
+                <AnchorPane fx:id="htmlInspector"
+                            style="-fx-background-color: white; -fx-border-color: #ccc; -fx-border-width: 1;">
+                    <children>
+                        <CodeArea fx:id="htmlCodeArea"
+                                  editable="false"
+                                  style="-fx-font-family: 'Consolas';
+                                 -fx-font-size: 13px;
+                                 -fx-background-color: black;
+                                 -fx-text-fill: #000000;"
+                                  AnchorPane.topAnchor="0.0"
+                                  AnchorPane.bottomAnchor="0.0"
+                                  AnchorPane.leftAnchor="0.0"
+                                  AnchorPane.rightAnchor="0.0" />
+                    </children>
+                </AnchorPane>
+            </SplitPane>
+
+            <!-- Alert giữa màn hình -->
+            <AnchorPane fx:id="browserAlert"
+                        visible="false"
+                        style="-fx-background-color: rgb(255,148,114);
+                   -fx-background-radius: 10;
+                   -fx-padding: 14 24 14 24;
+                   -fx-effect: dropshadow(gaussian, rgba(255,140,0,0.5), 10, 0, 0, 3);
+                   -fx-max-width: 320;
+                   -fx-max-height: 120;"
+                        StackPane.alignment="TOP_CENTER">
+                <children>
+                    <Label fx:id="alertMessage"
+                           textFill="#ffffff"
+                           alignment="CENTER"
+                           style="-fx-font-size: 14px;
+                      -fx-font-weight: bold;
+                      -fx-font-family: 'Segoe UI', sans-serif;
+                      -fx-wrap-text: true;
+                      -fx-text-alignment: center;"
+                           AnchorPane.topAnchor="0"
+                           AnchorPane.bottomAnchor="0"
+                           AnchorPane.leftAnchor="0"
+                           AnchorPane.rightAnchor="0"/>
+                </children>
+            </AnchorPane>
+
+
 
             <AnchorPane fx:id="mainBackground">
                 <children>
@@ -176,9 +229,8 @@
                         <!-- VÙNG PHỤ: Các nút chức năng -->
                         <VBox fx:id="vboxButtons" alignment="TOP_CENTER" prefWidth="120.0" spacing="10" style="-fx-background-color: #f4f4f4; -fx-padding: 10; -fx-border-color: #ddd; -fx-border-radius: 8;">
                             <children>
-                                <Button fx:id="btnRefresh" prefWidth="100.0" text="Làm mới" />
-                                <Button fx:id="btnDelete" prefWidth="100.0" text="Xoá lịch sử" />
-                                <Button fx:id="btnExport" prefWidth="100.0" text="Xuất file" />
+                                <Button fx:id="btnRefresh" prefWidth="100.0" text="Làm mới" onAction="#refreshHistory" />
+                                <Button fx:id="btnDelete" prefWidth="100.0" text="Xoá lịch sử" onAction="#deleteSelectedHistory" />
                                 <Button fx:id="btnClose" onAction="#home" prefWidth="100.0" text="Đóng" />
                             </children>
                         </VBox>

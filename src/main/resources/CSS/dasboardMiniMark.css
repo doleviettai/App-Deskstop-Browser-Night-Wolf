@@ -393,4 +393,16 @@
     -fx-background-color: derive(#a0a0a0, -20%);
 }
 
+.tag {
+    -fx-fill: #569CD6; /* Màu xanh thẻ HTML */
+}
+
+.string {
+    -fx-fill: #CE9178; /* Màu nâu cho chuỗi */
+}
+
+.attribute {
+    -fx-fill: #9CDCFE; /* Màu xanh nhạt cho thuộc tính */
+}
+
 

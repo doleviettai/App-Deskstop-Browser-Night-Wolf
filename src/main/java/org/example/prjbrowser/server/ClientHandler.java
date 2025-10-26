@@ -292,7 +292,7 @@ public class ClientHandler implements Runnable {
                         int userId = Integer.parseInt(req.get("user_id").toString());
 
                         PreparedStatement ps = conn.prepareStatement("""
-                            SELECT u.url, v.visit_time
+                            SELECT v.id AS visit_id, u.url, v.visit_time
                             FROM brower.visits v
                             JOIN brower.urls u ON v.url_id = u.id
                             WHERE v.user_id = ?
@@ -304,6 +304,7 @@ public class ClientHandler implements Runnable {
                         List<Map<String, String>> historyList = new ArrayList<>();
                         while (rs.next()) {
                             Map<String, String> item = new HashMap<>();
+                            item.put("id", rs.getString("visit_id"));
                             item.put("url", rs.getString("url"));
                             item.put("visit_time", rs.getString("visit_time"));
                             historyList.add(item);
@@ -315,7 +316,6 @@ public class ClientHandler implements Runnable {
 
                         rs.close();
                         ps.close();
-
                     } catch (Exception ex) {
                         res.put("status", "fail");
                         res.put("message", "Lỗi khi lấy lịch sử: " + ex.getMessage());
@@ -323,6 +323,38 @@ public class ClientHandler implements Runnable {
                     }
                     break;
                 }
+
+
+                case "delete_history_user": {
+                    try {
+                        int visitId = Integer.parseInt(req.get("visit_id").toString());
+
+                        PreparedStatement ps = conn.prepareStatement("""
+                            DELETE FROM brower.visits 
+                            WHERE id = ?
+                        """);
+                        ps.setInt(1, visitId);
+
+                        int rows = ps.executeUpdate();
+
+                        if (rows > 0) {
+                            res.put("status", "success");
+                            res.put("message", "Đã xóa lịch sử truy cập thành công");
+                        } else {
+                            res.put("status", "fail");
+                            res.put("message", "Không tìm thấy mục cần xóa");
+                        }
+
+                        ps.close();
+                    } catch (Exception ex) {
+                        res.put("status", "fail");
+                        res.put("message", "Lỗi khi xóa lịch sử: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
+                    break;
+                }
+
+
 
                 case "show_bookmark_of_user": {
                     try {

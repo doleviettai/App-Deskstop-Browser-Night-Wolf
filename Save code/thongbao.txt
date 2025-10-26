@@ -1,0 +1,180 @@
+<!-- ============================== -->
+            <!-- 🟡 Confirm Alert -->
+            <!-- ============================== -->
+            <AnchorPane fx:id="confirmAlert"
+                        visible="false"
+                        style="-fx-background-color: rgb(255,186,73);
+                   -fx-background-radius: 10;
+                   -fx-padding: 14 24 14 24;
+                   -fx-effect: dropshadow(gaussian, rgba(255,140,0,0.5), 10, 0, 0, 3);
+                   -fx-max-width: 360;
+                   -fx-max-height: 150;"
+                        StackPane.alignment="CENTER">
+                <children>
+                    <VBox alignment="CENTER" spacing="10">
+                        <Label fx:id="confirmMessage"
+                               textFill="#ffffff"
+                               style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';"
+                               wrapText="true" textAlignment="CENTER"/>
+                        <HBox alignment="CENTER" spacing="20">
+                            <Button fx:id="btnConfirmOk" text="OK" style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
+                            <Button fx:id="btnConfirmCancel" text="Cancel" style="-fx-background-color: #f44336; -fx-text-fill: white;"/>
+                        </HBox>
+                    </VBox>
+                </children>
+            </AnchorPane>
+
+            <!-- ============================== -->
+            <!-- 💬 Prompt Alert -->
+            <!-- ============================== -->
+            <AnchorPane fx:id="promptAlert"
+                        visible="false"
+                        style="-fx-background-color: rgb(100,181,246);
+                   -fx-background-radius: 10;
+                   -fx-padding: 14 24 14 24;
+                   -fx-effect: dropshadow(gaussian, rgba(33,150,243,0.5), 10, 0, 0, 3);
+                   -fx-max-width: 360;
+                   -fx-max-height: 180;"
+                        StackPane.alignment="CENTER">
+                <children>
+                    <VBox alignment="CENTER" spacing="10">
+                        <Label fx:id="promptMessage"
+                               textFill="#ffffff"
+                               style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';"
+                               wrapText="true" textAlignment="CENTER"/>
+                        <TextField fx:id="promptInput" promptText="Nhập nội dung..." />
+                        <HBox alignment="CENTER" spacing="20">
+                            <Button fx:id="btnPromptOk" text="OK" style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
+                            <Button fx:id="btnPromptCancel" text="Cancel" style="-fx-background-color: #f44336; -fx-text-fill: white;"/>
+                        </HBox>
+                    </VBox>
+                </children>
+            </AnchorPane>
+
+
+            ///===================NewTab
+
+            @FXML
+                public AnchorPane confirmAlert;
+                @FXML
+                public Label confirmMessage;
+                @FXML
+                public Button btnConfirmOk;
+                @FXML
+                public Button btnConfirmCancel;
+                @FXML
+                public AnchorPane promptAlert;
+                @FXML
+                public Label promptMessage;
+                @FXML
+                public TextField promptInput;
+                @FXML
+                public Button btnPromptOk;
+                @FXML
+                public Button btnPromptCancel;
+                // Để lưu kết quả từ confirm / prompt
+                private CompletableFuture<Boolean> confirmFuture;
+                private CompletableFuture<String> promptFuture;
+
+
+                private CompletableFuture<Boolean> showConfirmAlert(String message) {
+                        confirmFuture = new CompletableFuture<>();
+
+                        Platform.runLater(() -> {
+                            confirmMessage.setText(message);
+                            confirmAlert.setVisible(true);
+                            confirmAlert.setOpacity(0);
+                            confirmAlert.setTranslateY(30);
+
+                            FadeTransition fadeIn = new FadeTransition(Duration.millis(250), confirmAlert);
+                            fadeIn.setFromValue(0);
+                            fadeIn.setToValue(1);
+
+                            TranslateTransition slideUp = new TranslateTransition(Duration.millis(250), confirmAlert);
+                            slideUp.setFromY(30);
+                            slideUp.setToY(0);
+
+                            new ParallelTransition(fadeIn, slideUp).play();
+                        });
+
+                        // Xử lý nút
+                        btnConfirmOk.setOnAction(e -> {
+                            hideConfirmAlert();
+                            confirmFuture.complete(true);
+                        });
+                        btnConfirmCancel.setOnAction(e -> {
+                            hideConfirmAlert();
+                            confirmFuture.complete(false);
+                        });
+
+                        return confirmFuture;
+                    }
+
+                    private void hideConfirmAlert() {
+                        FadeTransition fadeOut = new FadeTransition(Duration.millis(300), confirmAlert);
+                        fadeOut.setFromValue(1);
+                        fadeOut.setToValue(0);
+
+                        fadeOut.setOnFinished(e -> confirmAlert.setVisible(false));
+                        fadeOut.play();
+                    }
+
+                    private CompletableFuture<String> showPromptAlert(String message) {
+                        promptFuture = new CompletableFuture<>();
+
+                        Platform.runLater(() -> {
+                            promptMessage.setText(message);
+                            promptInput.clear();
+                            promptAlert.setVisible(true);
+                            promptAlert.setOpacity(0);
+                            promptAlert.setTranslateY(30);
+
+                            FadeTransition fadeIn = new FadeTransition(Duration.millis(250), promptAlert);
+                            fadeIn.setFromValue(0);
+                            fadeIn.setToValue(1);
+
+                            TranslateTransition slideUp = new TranslateTransition(Duration.millis(250), promptAlert);
+                            slideUp.setFromY(30);
+                            slideUp.setToY(0);
+
+                            new ParallelTransition(fadeIn, slideUp).play();
+                        });
+
+                        // Nút xử lý
+                        btnPromptOk.setOnAction(e -> {
+                            hidePromptAlert();
+                            promptFuture.complete(promptInput.getText());
+                        });
+                        btnPromptCancel.setOnAction(e -> {
+                            hidePromptAlert();
+                            promptFuture.complete(null);
+                        });
+
+                        return promptFuture;
+                    }
+
+                    private void hidePromptAlert() {
+                        FadeTransition fadeOut = new FadeTransition(Duration.millis(300), promptAlert);
+                        fadeOut.setFromValue(1);
+                        fadeOut.setToValue(0);
+                        fadeOut.setOnFinished(e -> promptAlert.setVisible(false));
+                        fadeOut.play();
+                    }
+
+//=========================init===========================================
+                    engine.setConfirmHandler(message -> {
+                        try {
+                            return showConfirmAlert("❓ " + message).get(); // đợi người dùng chọn
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
+
+                    engine.setPromptHandler(param -> {
+                        try {
+                            String result = showPromptAlert("💬 " + param.getMessage()).get();
+                            return result == null ? "" : result;
+                        } catch (Exception e) {
+                            return "";
+                        }
+                    });
