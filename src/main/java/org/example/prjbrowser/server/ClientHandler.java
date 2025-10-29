@@ -193,6 +193,70 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                case "upload_profile_image": {
+                    try {
+                        int userId = Integer.parseInt((String) req.get("user_id"));
+                        byte[] imageData = (byte[]) req.get("image_data");
+
+                        if (imageData == null || imageData.length == 0) {
+                            res.put("status", "fail");
+                            res.put("message", "Không có dữ liệu ảnh để lưu.");
+                            break;
+                        }
+
+                        PreparedStatement ps = conn.prepareStatement(
+                                "UPDATE brower.users SET avatar = ? WHERE id = ?"
+                        );
+                        ps.setBytes(1, imageData);
+                        ps.setInt(2, userId);
+
+                        int rows = ps.executeUpdate();
+
+                        if (rows > 0) {
+                            res.put("status", "success");
+                            res.put("message", "Cập nhật ảnh đại diện thành công!");
+                        } else {
+                            res.put("status", "fail");
+                            res.put("message", "Không tìm thấy người dùng có ID tương ứng.");
+                        }
+
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                        res.put("status", "fail");
+                        res.put("message", "Lỗi SQL: " + e.getMessage());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        res.put("status", "fail");
+                        res.put("message", "Lỗi khi xử lý upload ảnh: " + e.getMessage());
+                    }
+                    break;
+                }
+
+                case "get_user_avatar": {
+                    try {
+                        int userId = Integer.parseInt((String) req.get("user_id"));
+                        PreparedStatement ps = conn.prepareStatement("SELECT avatar FROM brower.users WHERE id=?");
+                        ps.setInt(1, userId);
+                        ResultSet rs = ps.executeQuery();
+
+                        if (rs.next()) {
+                            byte[] avatarBytes = rs.getBytes("avatar");
+                            res.put("status", "success");
+                            res.put("avatar", avatarBytes); // có thể null nếu chưa upload
+                        } else {
+                            res.put("status", "fail");
+                            res.put("message", "Không tìm thấy người dùng.");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        res.put("status", "fail");
+                        res.put("message", "Lỗi khi lấy ảnh: " + e.getMessage());
+                    }
+                    break;
+                }
+
+
+
                 case "add_visit": {
                     int userId = Integer.parseInt(req.get("user_id").toString());
                     String url = (String) req.get("url");

@@ -7,9 +7,9 @@ public class Users {
     private String lastname;
     private String password;
     private Integer phone_number;
-    private String avatar;
+    private byte[] avatar;
 
-    public Users(String avatar, String firstname, Integer id, String lastname, String password, Integer phone_number, String username) {
+    public Users(byte[] avatar, String firstname, Integer id, String lastname, String password, Integer phone_number, String username) {
         this.avatar = avatar;
         this.firstname = firstname;
         this.id = id;
@@ -19,11 +19,11 @@ public class Users {
         this.username = username;
     }
 
-    public String getAvatar() {
+    public byte[] getAvatar() {
         return avatar;
     }
 
-    public void setAvatar(String avatar) {
+    public void setAvatar(byte[] avatar) {
         this.avatar = avatar;
     }
 

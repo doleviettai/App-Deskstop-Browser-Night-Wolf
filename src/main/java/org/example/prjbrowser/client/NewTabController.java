@@ -17,6 +17,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
@@ -29,6 +30,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebHistory;
 import javafx.scene.web.WebView;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.example.prjbrowser.client.desginer.dialog;
@@ -40,8 +42,10 @@ import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.Socket;
 import java.net.URL;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -111,6 +115,8 @@ public class NewTabController implements Initializable {
     @FXML
     private Label username_browser;
     @FXML
+    private ImageView image_browser;
+    @FXML
     private Label Date_label;
     @FXML
     private Label Time_label;
@@ -138,6 +144,8 @@ public class NewTabController implements Initializable {
 
     private boolean inspectorVisible = false;
 
+    private File selectedImageFile; // lưu file ảnh vừa chọn
+
     private WebEngine engine;
     private double zoomLevel = 1.0;
     private boolean isMenuOpen = false;
@@ -160,6 +168,9 @@ public class NewTabController implements Initializable {
 
         if (username_browser != null)
             username_browser.setText(id + " " + fullname);
+
+        // Load avatar từ server
+        loadUserAvatar(id);
 
         // gọi cập nhật nút login/logout
         loadUserBookmarks();
@@ -650,8 +661,84 @@ public class NewTabController implements Initializable {
         }
     }
 
+    public void handleSelectImage(ActionEvent event) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Chọn ảnh đại diện");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Hình ảnh", "*.png", "*.jpg", "*.jpeg")
+        );
 
-//=======================Ghim thẻ trang============================================
+        selectedImageFile = fileChooser.showOpenDialog(null);
+
+        if (selectedImageFile != null) {
+            Image image = new Image(selectedImageFile.toURI().toString());
+            image_browser.setImage(image);
+            System.out.println("✅ Đã chọn ảnh: " + selectedImageFile.getName());
+        } else {
+            System.out.println("⚠️ Không có ảnh nào được chọn.");
+        }
+    }
+
+    public void handleSaveImage(ActionEvent event) {
+        if (selectedImageFile == null) {
+            System.out.println("⚠️ Chưa chọn ảnh nào để lưu.");
+            return;
+        }
+
+        try {
+            // Đọc dữ liệu ảnh thành mảng byte
+            byte[] imageBytes = Files.readAllBytes(selectedImageFile.toPath());
+
+            // Gửi yêu cầu lên server
+            Message request = new Message();
+            request.put("action", "upload_profile_image");
+            request.put("user_id", currentId);
+            request.put("image_data", imageBytes);
+
+            Message response = sendRequest(request);
+
+            if (response != null && "success".equals(response.get("status"))) {
+                System.out.println("✅ Ảnh đại diện đã được lưu thành công!");
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                dl.alertDialog(alert, "Thành công", (String) response.get("message"), "thanhcong");
+            } else {
+                System.out.println("❌ Lỗi khi lưu ảnh: " + response.get("message"));
+            }
+
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Gọi sau khi đăng nhập thành công, truyền userId hoặc Users object
+    public void loadUserAvatar(String userId) {
+        try {
+            // Tạo request gửi server
+            Message request = new Message();
+            request.put("action", "get_user_avatar");
+            request.put("user_id", userId);
+
+            Message response = sendRequest(request);
+
+            if (response != null && "success".equals(response.get("status"))) {
+                byte[] avatarBytes = (byte[]) response.get("avatar");
+                if (avatarBytes != null && avatarBytes.length > 0) {
+                    Image avatarImage = new Image(new ByteArrayInputStream(avatarBytes));
+                    image_browser.setImage(avatarImage);
+                } else {
+                    System.out.println("⚠️ User chưa có ảnh đại diện.");
+                }
+            } else {
+                System.out.println("❌ Lỗi khi load ảnh: " + response.get("message"));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+    //=======================Ghim thẻ trang============================================
     public void loadUserBookmarks() {
         if (currentId == null || currentId.isEmpty()) return;
 
@@ -925,9 +1012,11 @@ public class NewTabController implements Initializable {
     private void setupContextMenu() {
         ContextMenu contextMenu = new ContextMenu();
         MenuItem inspectItem = new MenuItem("🧩 Kiểm tra mã HTML");
-        contextMenu.getItems().add(inspectItem);
+        MenuItem headItem = new MenuItem("Hiện Header / POST");
+        contextMenu.getItems().addAll(inspectItem , headItem);
 
         inspectItem.setOnAction(e -> toggleHtmlInspector());
+        headItem.setOnAction(e -> showHeadAndPostInspectorDialog());
 
         webView.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
             if (event.getButton() == MouseButton.SECONDARY) {
@@ -967,6 +1056,118 @@ public class NewTabController implements Initializable {
             inspectorVisible = true;
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    private void showHeadAndPostInspectorDialog() {
+        try {
+            String currentUrl = engine.getLocation();
+            if (currentUrl == null || currentUrl.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Không có trang");
+                alert.setHeaderText("Không thể kiểm tra thông tin");
+                alert.setContentText("Chưa có trang web nào được tải.");
+                alert.showAndWait();
+                return;
+            }
+
+            // Chuẩn bị thông tin HEAD và POST
+            StringBuilder sb = new StringBuilder();
+            try {
+                HttpURLConnection headConn = (HttpURLConnection) new URL(currentUrl).openConnection();
+                headConn.setRequestMethod("HEAD");
+                headConn.connect();
+
+                sb.append("== HEAD Request Info ==\n");
+                sb.append("URL: ").append(currentUrl).append("\n");
+                sb.append("Status: ").append(headConn.getResponseCode())
+                        .append(" ").append(headConn.getResponseMessage()).append("\n");
+                sb.append("Content-Type: ").append(headConn.getContentType()).append("\n\n");
+
+                sb.append("== Response Headers ==\n");
+                headConn.getHeaderFields().forEach((key, values) -> {
+                    if (key != null)
+                        sb.append(key).append(": ").append(String.join(", ", values)).append("\n");
+                });
+
+                // Thử POST (nếu được)
+                sb.append("\n\n== POST Request Test ==\n");
+                try {
+                    HttpURLConnection postConn = (HttpURLConnection) new URL(currentUrl).openConnection();
+                    postConn.setRequestMethod("POST");
+                    postConn.setDoOutput(true);
+                    postConn.getOutputStream().write("test=data".getBytes());
+                    postConn.connect();
+                    sb.append("Status: ").append(postConn.getResponseCode())
+                            .append(" ").append(postConn.getResponseMessage()).append("\n");
+                } catch (Exception e) {
+                    sb.append("POST test failed: ").append(e.getMessage()).append("\n");
+                }
+            } catch (Exception e) {
+                sb.append("Không thể lấy HEAD/POST info: ").append(e.getMessage()).append("\n");
+            }
+
+            // Hiển thị trong dialog
+            Platform.runLater(() -> {
+                Dialog<Void> dialog = new Dialog<>();
+                dialog.setTitle("🧩 Thông tin HEAD / POST");
+                dialog.setHeaderText("Phân tích trang: " + currentUrl);
+                dialog.getDialogPane().setPrefSize(800, 500);
+
+                // 🎨 CSS Gradient cho dialog
+                String gradientStyle = """
+                -fx-background-color: linear-gradient(to bottom right, rgb(255,148,114), rgb(242,112,156));
+                -fx-border-color: white;
+                -fx-border-width: 2;
+                -fx-background-radius: 15;
+                -fx-border-radius: 15;
+            """;
+                dialog.getDialogPane().setStyle(gradientStyle);
+
+                // Tạo TextArea hiển thị HEAD & POST info
+                TextArea networkArea = new TextArea(sb.toString());
+                networkArea.setEditable(false);
+                networkArea.setWrapText(true);
+                networkArea.setStyle("""
+                -fx-font-family: Consolas;
+                -fx-font-size: 13;
+                -fx-control-inner-background: rgba(255,255,255,0.9);
+                -fx-text-fill: black;
+                -fx-background-radius: 10;
+            """);
+
+                ScrollPane scroll = new ScrollPane(networkArea);
+                scroll.setFitToWidth(true);
+                scroll.setFitToHeight(true);
+                scroll.setStyle("-fx-background-color: transparent;");
+
+                dialog.getDialogPane().setContent(scroll);
+
+                ButtonType closeButton = new ButtonType("Đóng", ButtonBar.ButtonData.CANCEL_CLOSE);
+                dialog.getDialogPane().getButtonTypes().add(closeButton);
+
+                // Style nút đóng
+                Button closeBtn = (Button) dialog.getDialogPane().lookupButton(closeButton);
+                closeBtn.setStyle("""
+                -fx-background-color: rgba(255,255,255,0.85);
+                -fx-text-fill: rgb(242,112,156);
+                -fx-font-weight: bold;
+                -fx-background-radius: 10;
+                -fx-cursor: hand;
+            """);
+
+                dialog.showAndWait();
+            });
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            Platform.runLater(() -> {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Lỗi");
+                alert.setHeaderText("Không thể kiểm tra HEAD/POST");
+                alert.setContentText(ex.getMessage());
+                alert.showAndWait();
+            });
         }
     }
 
