@@ -158,6 +158,11 @@ public class NewTabController implements Initializable {
     private dialog dl = new dialog();
 
     String username_log;
+    // Biến toàn cục trong class (NewTabController)
+    private String lastSavedUrl = "";
+    private String pendingUrl = "";
+    private boolean manualLoad = false;
+
     private boolean atHome = true; // trạng thái: true = đang ở "trang chủ"
 
     public void receiverNickName(String id,String username, String fullname) {
@@ -240,6 +245,7 @@ public class NewTabController implements Initializable {
 
 
     public void loadUrl() {
+        manualLoad = true; // đánh dấu là load thủ công
         String inputUrl = search.getText().trim();
         if (inputUrl.isEmpty()) return;
 
@@ -251,7 +257,7 @@ public class NewTabController implements Initializable {
 
         WebEngine engine = webView.getEngine();
 
-        // ⚙️ Giả lập trình duyệt Chrome để tương thích tốt hơn với HTTPS
+        // 🧩 Giả lập Chrome
         engine.setUserAgent(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
                         "AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -260,64 +266,35 @@ public class NewTabController implements Initializable {
 
         Worker<Void> worker = engine.getLoadWorker();
 
-        // Lắng nghe trạng thái tải trang
-        ChangeListener<Worker.State> oneShot = new ChangeListener<>() {
-            @Override
-            public void changed(ObservableValue<? extends Worker.State> obs,
-                                Worker.State oldState,
-                                Worker.State newState) {
-                if (newState == Worker.State.SUCCEEDED) {
-                    // ✅ Load thành công
-                    worker.stateProperty().removeListener(this);
+        // Xử lý trạng thái tải trang
+        worker.stateProperty().addListener((obs, oldState, newState) -> {
+            if (newState == Worker.State.SUCCEEDED) {
+                String title = engine.getTitle();
+                if (title == null || title.isEmpty()) title = "Unknown";
+                setCurrentPageTitle(title);
 
-                    String title = engine.getTitle();
-                    if (title == null || title.isEmpty()) title = "Unknown";
-                    setCurrentPageTitle(title);
-
-                    // Gửi lưu lịch sử nếu có đăng nhập
-                    if (currentId != null && currentUsername != null) {
-                        try {
-                            Message request = new Message();
-                            request.getData().put("action", "add_visit");
-                            request.getData().put("user_id", currentId);
-                            request.getData().put("url", url);
-                            request.getData().put("title", title);
-                            request.getData().put("hidden", false);
-                            sendRequest(request);
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
+                // ✅ Gửi lịch sử khi load thủ công
+                if (currentId != null && currentUsername != null) {
+                    try {
+                        Message request = new Message();
+                        request.getData().put("action", "add_visit");
+                        request.getData().put("user_id", currentId);
+                        request.getData().put("url", url);
+                        request.getData().put("title", title);
+                        request.getData().put("hidden", false);
+                        sendRequest(request);
+                        lastSavedUrl = url;
+                        System.out.println("📜 Đã lưu lịch sử truy cập (tải thủ công): " + title);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
                     }
                 }
-                // ❌ Load thất bại → hiển thị trang lỗi
-                else if (newState == Worker.State.FAILED || newState == Worker.State.CANCELLED) {
-                    worker.stateProperty().removeListener(this);
 
-                    System.out.println("⚠️ Không thể tải trang: " + url);
-                    Platform.runLater(() -> {
-                        // ⚠️ Giữ nguyên URL người dùng nhập trong TextField
-                        search.setText(url);
-
-                        // ⚠️ Load trang lỗi nhưng KHÔNG đổi URL trong thanh địa chỉ
-                        engine.loadContent(
-                                "<iframe src='https://doleviettai.github.io/ViewWebError/' " +
-                                        "style='width:100%;height:100%;border:none;'></iframe>"
-                        );
-
-                        setCurrentPageTitle("Không thể truy cập trang web này");
-//                        showBrowserAlert("Không thể truy cập trang web này");
-                    });
-                }
+                manualLoad = false; // reset flag
             }
-        };
 
-        // Gắn listener
-        worker.stateProperty().addListener(oneShot);
-
-        // Xử lý ngoại lệ khi load trang
-        worker.exceptionProperty().addListener((obs, old, ex) -> {
-            if (ex != null) {
-                System.out.println("❌ Exception khi load trang: " + ex.getMessage());
+            else if (newState == Worker.State.FAILED || newState == Worker.State.CANCELLED) {
+                System.out.println("⚠️ Không thể tải trang: " + url);
                 Platform.runLater(() -> {
                     search.setText(url);
                     engine.loadContent(
@@ -326,19 +303,8 @@ public class NewTabController implements Initializable {
                     );
                     setCurrentPageTitle("Không thể truy cập trang web này");
                 });
+                manualLoad = false;
             }
-        });
-
-        engine.setOnError(e -> {
-            System.out.println("❌ WebView Error: " + e.getMessage());
-            Platform.runLater(() -> {
-                search.setText(url);
-                engine.loadContent(
-                        "<iframe src='https://doleviettai.github.io/ViewWebError/' " +
-                                "style='width:100%;height:100%;border:none;'></iframe>"
-                );
-                setCurrentPageTitle("Không thể truy cập trang web này");
-            });
         });
 
         // Bắt đầu tải trang
@@ -352,6 +318,7 @@ public class NewTabController implements Initializable {
                             "style='width:100%;height:100%;border:none;'></iframe>"
             );
             setCurrentPageTitle("Không thể truy cập trang web này");
+            manualLoad = false;
         }
     }
 
@@ -376,9 +343,52 @@ public class NewTabController implements Initializable {
         return url;
     }
 
+    // ============================
+    // 🔁 Theo dõi thay đổi URL (kể cả khi người dùng click trong trang)
+    // ============================
+    private void loadUrlWhenPathChanges() {
+//        WebEngine engine = webView.getEngine();
 
+        // Theo dõi URL thay đổi (khi click link trong trang)
+        engine.locationProperty().addListener((obs, oldLoc, newLoc) -> {
+            if (newLoc == null || newLoc.isEmpty()) return;
+            if (!newLoc.equals(oldLoc)) {
+                pendingUrl = newLoc;
+                search.setText(newLoc);
+                System.out.println("🌐 URL thay đổi: " + newLoc);
+            }
+        });
 
+        // Khi trang tải xong sau khi thay đổi
+        engine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+            if (newState == Worker.State.SUCCEEDED) {
+                String currentUrl = engine.getLocation();
+                if (manualLoad) return; // ❌ bỏ qua load thủ công (đã gửi ở loadUrl)
 
+                // Chỉ gửi nếu khác URL cũ
+                if (currentUrl != null && !currentUrl.equals(lastSavedUrl)) {
+                    String title = engine.getTitle();
+                    if (title == null || title.isEmpty()) title = "Unknown";
+
+                    if (currentId != null && currentUsername != null) {
+                        try {
+                            Message request = new Message();
+                            request.getData().put("action", "add_visit");
+                            request.getData().put("user_id", currentId);
+                            request.getData().put("url", currentUrl);
+                            request.getData().put("title", title);
+                            request.getData().put("hidden", false);
+                            sendRequest(request);
+                            lastSavedUrl = currentUrl;
+                            System.out.println("📜 Đã lưu lịch sử truy cập (click link): " + title);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     public void toggleMenu() {
         double menuWidth = getScreenWidth() / 3.8;
@@ -1402,6 +1412,7 @@ public class NewTabController implements Initializable {
             return ""; // không nhập gì
         });
 
+        loadUrlWhenPathChanges();
         tableHistoryBroserReponsive();
         TimeChay();
 

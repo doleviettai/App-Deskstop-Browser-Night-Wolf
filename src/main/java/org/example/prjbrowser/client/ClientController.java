@@ -103,11 +103,11 @@ public class ClientController implements Initializable {
             newTab.setGraphic(defaultIcon);
 
             // Khi nhập URL → load và đổi tên tab
-            controller.getSearch().setOnKeyPressed(e -> {
-                if (e.getCode() == KeyCode.ENTER) {
-                    controller.loadUrl();
-                }
-            });
+//            controller.getSearch().setOnKeyPressed(e -> {
+//                if (e.getCode() == KeyCode.ENTER) {
+//                    controller.loadUrl();
+//                }
+//            });
 
 
             // Khi trang load xong → cập nhật favicon + title
