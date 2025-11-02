@@ -8,6 +8,7 @@ module org.example.prjbrowser {
     requires java.desktop;
     requires mysql.connector.java;
     requires org.fxmisc.richtext;
+    requires jdk.jsobject;
 
 
     opens org.example.prjbrowser to javafx.fxml;

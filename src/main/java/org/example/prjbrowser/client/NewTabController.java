@@ -2,6 +2,7 @@ package org.example.prjbrowser.client;
 
 import javafx.animation.*;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -11,6 +12,7 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -22,10 +24,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.AnchorPane;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebHistory;
@@ -33,9 +32,12 @@ import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import netscape.javascript.JSObject;
 import org.example.prjbrowser.client.desginer.dialog;
 import org.example.prjbrowser.common.Message;
 import org.example.prjbrowser.model.AutoLoginService;
+import org.example.prjbrowser.model.CookieBridge;
+import org.example.prjbrowser.model.Cookies;
 import org.example.prjbrowser.model.HistoryItem;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.StyleSpans;
@@ -44,8 +46,10 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.Socket;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -310,6 +314,24 @@ public class NewTabController implements Initializable {
         // Bắt đầu tải trang
         try {
             engine.load(url);
+            try {
+                Message req = new Message();
+                req.getData().put("action", "get_cookies");
+                req.getData().put("user_id", currentId);
+                req.getData().put("host_key", URI.create(url).getHost());
+                Message res = sendRequest(req);
+
+                if ("success".equals(res.get("status"))) {
+                    List<Map<String, String>> cookies = (List<Map<String, String>>) res.get("cookies");
+                    for (Map<String, String> ck : cookies) {
+                        String script = String.format("document.cookie='%s=%s; path=/';", ck.get("name"), ck.get("value"));
+                        engine.executeScript(script);
+                    }
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+
         } catch (Exception ex) {
             System.out.println("⚠️ URL load error: " + ex.getMessage());
             search.setText(url);
@@ -389,6 +411,42 @@ public class NewTabController implements Initializable {
             }
         });
     }
+
+    private void saveCookieToServer(String cookieString) {
+        if (currentId == null) return; // chưa đăng nhập trình duyệt
+
+        // cookieString ví dụ: "c_user=12345; xs=abcd; fr=xyz"
+        String host = webView.getEngine().getLocation();
+        String domain = URI.create(host).getHost();
+
+        for (String part : cookieString.split(";")) {
+            String[] kv = part.trim().split("=", 2);
+            if (kv.length == 2) {
+                try {
+                    Message req = new Message();
+                    req.getData().put("action", "save_cookie");
+                    req.getData().put("user_id", currentId);
+                    req.getData().put("host_key", domain);
+                    req.getData().put("name", kv[0]);
+                    req.getData().put("value", kv[1]);
+                    sendRequest(req);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
+    private void setupCookieBridge(WebEngine engine) {
+        CookieBridge bridge = new CookieBridge(cookie -> {
+            // Khi JS gửi cookie về
+            saveCookieToServer(cookie);
+        });
+        JSObject window = (JSObject) engine.executeScript("window");
+        window.setMember("cookieBridge", bridge);
+    }
+
 
     public void toggleMenu() {
         double menuWidth = getScreenWidth() / 3.8;
@@ -505,6 +563,12 @@ public class NewTabController implements Initializable {
         confirm.setTitle("Xác nhận xóa");
         confirm.setHeaderText("Bạn có chắc muốn xóa lịch sử này?");
         confirm.setContentText("URL: " + selected.getUrl());
+        // Thêm CSS
+        confirm.getDialogPane().getStylesheets().add(
+                Objects.requireNonNull(getClass().getResource("/CSS/dialog.css")).toExternalForm()
+        );
+        // Thêm style class, ví dụ: thành công
+        confirm.getDialogPane().getStyleClass().add("thanhcong");
 
         Optional<ButtonType> result = confirm.showAndWait();
         if (result.isEmpty() || result.get() != ButtonType.OK) return;
@@ -1023,10 +1087,12 @@ public class NewTabController implements Initializable {
         ContextMenu contextMenu = new ContextMenu();
         MenuItem inspectItem = new MenuItem("🧩 Kiểm tra mã HTML");
         MenuItem headItem = new MenuItem("Hiện Header / POST");
-        contextMenu.getItems().addAll(inspectItem , headItem);
+        MenuItem cookieItem = new MenuItem("🍪 Xem Cookie"); // <-- Thêm dòng này
+        contextMenu.getItems().addAll(inspectItem , headItem , new SeparatorMenuItem(), cookieItem);
 
         inspectItem.setOnAction(e -> toggleHtmlInspector());
         headItem.setOnAction(e -> showHeadAndPostInspectorDialog());
+        cookieItem.setOnAction(e -> showCookieDialog()); // <-- Gọi hàm mới
 
         webView.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
             if (event.getButton() == MouseButton.SECONDARY) {
@@ -1213,6 +1279,174 @@ public class NewTabController implements Initializable {
         spansBuilder.add(java.util.Collections.emptyList(), text.length() - lastKwEnd);
         return spansBuilder.create();
     }
+
+    private void showCookieDialog() {
+        try {
+            String currentUrl = engine.getLocation();
+            if (currentUrl == null || currentUrl.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING, "Chưa có trang nào được tải.", ButtonType.OK);
+                alert.setHeaderText("⚠️ Không thể xem cookie");
+                alert.showAndWait();
+                return;
+            }
+
+            String host = new URL(currentUrl).getHost();
+            //int userId = 1; // 👈 Thay bằng ID user hiện tại khi có hệ thống login
+
+            // ======= Gửi yêu cầu lấy cookie =======
+            Message req = new Message();
+            req.put("action", "get_cookies");
+            req.put("user_id", currentId);
+            req.put("host_key", host);
+
+            Message res = sendRequest(req);
+            if (!"success".equals(res.get("status"))) {
+                throw new RuntimeException("Không thể tải cookie từ server");
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> cookieMaps = (List<Map<String, Object>>) res.get("cookies");
+
+            // ======= Chuyển dữ liệu sang đối tượng Cookies =======
+            ObservableList<Cookies> cookieList = FXCollections.observableArrayList();
+            for (Map<String, Object> map : cookieMaps) {
+                Cookies ck = new Cookies(
+                        null,
+                        Integer.parseInt(currentId),
+                        (String) map.get("host_key"),
+                        (String) map.get("name"),
+                        (String) map.get("value"),
+                        null,
+                        false,
+                        (Boolean) map.get("http_only"),
+                        null,
+                        (Timestamp) map.get("creation_time"),
+                        null,
+                        false
+                );
+                cookieList.add(ck);
+            }
+
+            // ======= Tạo dialog =======
+            Dialog<Void> dialog = new Dialog<>();
+            dialog.setTitle("🍪 Trình quản lý Cookie");
+            dialog.setHeaderText("Tên miền: " + host);
+            dialog.getDialogPane().setPrefSize(850, 500);
+
+            TableView<Cookies> table = new TableView<>();
+            table.setItems(cookieList);
+
+            // ======= Các cột =======
+            TableColumn<Cookies, String> hostCol = new TableColumn<>("Host");
+            hostCol.setCellValueFactory(new PropertyValueFactory<>("host_key"));
+            hostCol.setPrefWidth(130);
+
+            TableColumn<Cookies, String> nameCol = new TableColumn<>("Tên");
+            nameCol.setCellValueFactory(new PropertyValueFactory<>("name"));
+            nameCol.setPrefWidth(10);
+
+            TableColumn<Cookies, String> valueCol = new TableColumn<>("Giá trị");
+            valueCol.setCellValueFactory(new PropertyValueFactory<>("value"));
+            valueCol.setPrefWidth(200);
+
+            TableColumn<Cookies, Boolean> httpCol = new TableColumn<>("HTTP Only");
+            httpCol.setCellValueFactory(new PropertyValueFactory<>("http_only"));
+            httpCol.setPrefWidth(100);
+
+            TableColumn<Cookies, Timestamp> timeCol = new TableColumn<>("Thời gian tạo");
+            timeCol.setCellValueFactory(new PropertyValueFactory<>("creation_time"));
+            timeCol.setPrefWidth(180);
+
+            // ======= Cột hành động =======
+            TableColumn<Cookies, Void> actionCol = new TableColumn<>("Hành động");
+            actionCol.setCellFactory(col -> new TableCell<>() {
+                private final Button deleteBtn = new Button("Xóa");
+
+                {
+                    deleteBtn.setOnAction(e -> {
+                        Cookies item = getTableView().getItems().get(getIndex());
+                        deleteCookie(Integer.parseInt(currentId), item.getHost_key(), item.getName());
+                        getTableView().getItems().remove(item);
+                    });
+                    deleteBtn.setStyle("-fx-background-color: #ff5f6d; -fx-text-fill: white; -fx-background-radius: 5;");
+                }
+
+                @Override
+                protected void updateItem(Void item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty) setGraphic(null);
+                    else setGraphic(deleteBtn);
+                }
+            });
+            actionCol.setPrefWidth(90);
+
+            table.getColumns().addAll(hostCol, nameCol, valueCol, httpCol, timeCol, actionCol);
+
+            // ======= Nút xóa toàn bộ =======
+            Button deleteAllBtn = new Button("🧹 Xóa toàn bộ Cookie");
+            deleteAllBtn.setOnAction(e -> {
+                deleteAllCookies(Integer.parseInt(currentId), host);
+                table.getItems().clear();
+            });
+            deleteAllBtn.setStyle("""
+            -fx-background-color: linear-gradient(to right, #f83600, #fe8c00);
+            -fx-text-fill: white;
+            -fx-background-radius: 8;
+            -fx-font-weight: bold;
+        """);
+
+            VBox vbox = new VBox(10, table, deleteAllBtn);
+            vbox.setPadding(new Insets(10));
+            dialog.getDialogPane().setContent(vbox);
+            dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+            dialog.showAndWait();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            Alert alert = new Alert(Alert.AlertType.ERROR, ex.getMessage(), ButtonType.OK);
+            alert.setHeaderText("❌ Lỗi khi xem cookie");
+            alert.showAndWait();
+        }
+    }
+
+    private void deleteCookie(int userId, String host, String name) {
+        try {
+            Message req = new Message();
+            req.put("action", "delete_cookie");
+            req.put("user_id", userId);
+            req.put("host_key", host);
+            req.put("name", name);
+
+            Message res = sendRequest(req);
+            if ("success".equals(res.get("status"))) {
+                System.out.println("✅ Đã xóa cookie: " + name);
+            } else {
+                System.out.println("⚠️ Không thể xóa cookie: " + name);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void deleteAllCookies(int userId, String host) {
+        try {
+            Message req = new Message();
+            req.put("action" , "delete_all_cookies_for_host");
+            req.put("user_id", userId);
+            req.put("host_key", host);
+
+            Message res = sendRequest(req);
+            if ("success".equals(res.get("status"))) {
+                System.out.println("🧹 Đã xóa toàn bộ cookie cho host " + host);
+            } else {
+                System.out.println("⚠️ Không thể xóa toàn bộ cookie");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     //=================================================================================
     @FXML
@@ -1415,6 +1649,25 @@ public class NewTabController implements Initializable {
         loadUrlWhenPathChanges();
         tableHistoryBroserReponsive();
         TimeChay();
+
+        // 1️⃣ Tạo và đăng ký bridge Java <-> JavaScript
+        // 1️⃣ Theo dõi khi trang tải xong
+        engine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+            if (newState == Worker.State.SUCCEEDED) {
+                try {
+                    // 2️⃣ Gắn cầu nối Java ↔ JavaScript vào context của trang hiện tại
+                    setupCookieBridge(engine);
+
+                    // 3️⃣ Gọi JS lấy cookie và gửi về Java
+                    engine.executeScript("cookieBridge.setCookie(document.cookie);");
+
+                    System.out.println("✅ CookieBridge đã gắn lại và gửi cookie thành công!");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
 
         // Ctrl + / Ctrl - để zoom
         webView.setOnKeyPressed((KeyEvent e) -> {

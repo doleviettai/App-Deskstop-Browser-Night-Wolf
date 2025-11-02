@@ -612,6 +612,117 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                case "save_cookie": {
+                    int userId = Integer.parseInt(req.get("user_id").toString());
+                    String host = (String) req.get("host_key");
+                    String name = (String) req.get("name");
+                    String value = (String) req.get("value");
+
+                    // --- 1. Kiểm tra cookie đã tồn tại chưa ---
+                    PreparedStatement check = conn.prepareStatement("""
+                        SELECT id FROM cookies WHERE user_id = ? AND host_key = ? AND name = ?
+                    """);
+                    check.setInt(1, userId);
+                    check.setString(2, host);
+                    check.setString(3, name);
+                    ResultSet rs = check.executeQuery();
+
+                    if (!rs.next()) {
+                        // --- 2. Nếu chưa có, thì INSERT ---
+                        PreparedStatement ps = conn.prepareStatement("""
+                            INSERT INTO cookies (user_id, host_key, name, value, creation_time, last_access_time)
+                            VALUES (?, ?, ?, ?, NOW(), NOW())
+                        """);
+                        ps.setInt(1, userId);
+                        ps.setString(2, host);
+                        ps.setString(3, name);
+                        ps.setString(4, value);
+                        ps.executeUpdate();
+                        ps.close();
+
+                        res.put("status", "success");
+                        res.put("message", "Cookie mới đã được lưu");
+                    } else {
+                        // --- 3. Nếu đã có, thì bỏ qua ---
+                        res.put("status", "skip");
+                        res.put("message", "Cookie đã tồn tại, bỏ qua lưu trùng");
+                    }
+
+                    rs.close();
+                    check.close();
+                    break;
+                }
+
+
+                case "get_cookies": {
+                    int userId = Integer.parseInt(req.get("user_id").toString());
+                    String host = (String) req.get("host_key");
+
+                    PreparedStatement ps = conn.prepareStatement("""
+                        SELECT host_key, name, value, http_only, creation_time 
+                        FROM cookies 
+                        WHERE user_id = ? AND host_key = ?
+                    """);
+                    ps.setInt(1, userId);
+                    ps.setString(2, host);
+                    ResultSet rs = ps.executeQuery();
+
+                    List<Map<String, Object>> cookies = new ArrayList<>();
+                    while (rs.next()) {
+                        Map<String, Object> ck = new HashMap<>();
+                        ck.put("host_key", rs.getString("host_key"));
+                        ck.put("name", rs.getString("name"));
+                        ck.put("value", rs.getString("value"));
+                        ck.put("http_only", rs.getBoolean("http_only"));
+                        ck.put("creation_time", rs.getTimestamp("creation_time"));
+                        cookies.add(ck);
+                    }
+
+                    rs.close(); ps.close();
+                    res.put("status", "success");
+                    res.put("cookies", cookies);
+                    break;
+                }
+
+
+                case "delete_cookie": {
+                    int userId = Integer.parseInt(req.get("user_id").toString());
+                    String host = (String) req.get("host_key");
+                    String name = (String) req.get("name");
+
+                    PreparedStatement ps = conn.prepareStatement("""
+                        DELETE FROM cookies WHERE user_id = ? AND host_key = ? AND name = ?
+                    """);
+                    ps.setInt(1, userId);
+                    ps.setString(2, host);
+                    ps.setString(3, name);
+
+                    int rows = ps.executeUpdate();
+                    ps.close();
+
+                    res.put("status", "success");
+                    res.put("message", rows > 0 ? "Cookie deleted" : "No cookie found to delete");
+                    break;
+                }
+
+                case "delete_all_cookies_for_host": {
+                    int userId = Integer.parseInt(req.get("user_id").toString());
+                    String host = (String) req.get("host_key");
+
+                    PreparedStatement ps = conn.prepareStatement("""
+                        DELETE FROM cookies WHERE user_id = ? AND host_key = ?
+                    """);
+                    ps.setInt(1, userId);
+                    ps.setString(2, host);
+
+                    int rows = ps.executeUpdate();
+                    ps.close();
+
+                    res.put("status", "success");
+                    res.put("message", rows + " cookie(s) deleted for host " + host);
+                    break;
+                }
+
 
 
 
