@@ -23,4 +23,9 @@ public class Message implements Serializable {
     public Map<String, Object> getData() {
         return data;
     }
+
+
+    public Object getOrDefault(String key, Object defaultValue) {
+        return data.getOrDefault(key, defaultValue);
+    }
 }

@@ -1,0 +1,40 @@
+case "save_cookie": {
+    int userId = Integer.parseInt(req.get("user_id").toString());
+    String host = (String) req.get("host_key");
+    String name = (String) req.get("name");
+    String value = (String) req.get("value");
+
+    // --- 1. Kiểm tra cookie đã tồn tại chưa ---
+    PreparedStatement check = conn.prepareStatement("""
+        SELECT id FROM cookies WHERE user_id = ? AND host_key = ? AND name = ?
+    """);
+    check.setInt(1, userId);
+    check.setString(2, host);
+    check.setString(3, name);
+    ResultSet rs = check.executeQuery();
+
+    if (!rs.next()) {
+                            // --- 2. Nếu chưa có, thì INSERT ---
+                            PreparedStatement ps = conn.prepareStatement("""
+                                INSERT INTO cookies (user_id, host_key, name, value, creation_time, last_access_time)
+                                VALUES (?, ?, ?, ?, NOW(), NOW())
+                            """);
+                            ps.setInt(1, userId);
+                            ps.setString(2, host);
+                            ps.setString(3, name);
+                            ps.setString(4, value);
+                            ps.executeUpdate();
+                            ps.close();
+
+                            res.put("status", "success");
+                            res.put("message", "Cookie mới đã được lưu");
+                        } else {
+                            // --- 3. Nếu đã có, thì bỏ qua ---
+                            res.put("status", "skip");
+                            res.put("message", "Cookie đã tồn tại, bỏ qua lưu trùng");
+                        }
+
+    rs.close();
+    check.close();
+    break;
+}

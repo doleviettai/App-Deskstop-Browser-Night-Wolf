@@ -88,7 +88,7 @@
                 <!-- Phần xem mã nguồn HTML (ẩn ban đầu bằng kích thước) -->
                 <AnchorPane fx:id="htmlInspector" style="-fx-background-color: white; -fx-border-color: #ccc; -fx-border-width: 1;">
                     <children>
-                        <CodeArea fx:id="htmlCodeArea" editable="false" style="-fx-font-family: 'Consolas';                                  -fx-font-size: 13px;                                  -fx-background-color: black;                                  -fx-text-fill: #000000;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                        <CodeArea fx:id="htmlCodeArea" editable="false" style="-fx-font-family: 'Consolas';                                  -fx-font-size: 13px;                                  -fx-background-color: #404040;                                  -fx-text-fill: #000000;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                     </children>
                 </AnchorPane>
             </SplitPane>

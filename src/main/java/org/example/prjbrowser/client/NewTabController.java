@@ -35,19 +35,14 @@ import javafx.util.Duration;
 import netscape.javascript.JSObject;
 import org.example.prjbrowser.client.desginer.dialog;
 import org.example.prjbrowser.common.Message;
-import org.example.prjbrowser.model.AutoLoginService;
-import org.example.prjbrowser.model.CookieBridge;
-import org.example.prjbrowser.model.Cookies;
-import org.example.prjbrowser.model.HistoryItem;
+import org.example.prjbrowser.model.*;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.Socket;
-import java.net.URI;
-import java.net.URL;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -260,6 +255,7 @@ public class NewTabController implements Initializable {
         webView.setVisible(true);
 
         WebEngine engine = webView.getEngine();
+        final String finalUrl = url; // ✅ bản sao dùng trong lambda
 
         // 🧩 Giả lập Chrome
         engine.setUserAgent(
@@ -292,6 +288,56 @@ public class NewTabController implements Initializable {
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
+                }
+
+                // ✅ Lưu cache trang HTML chính
+                try {
+                    URL urlObj = new URL(finalUrl);
+                    HttpURLConnection conn = (HttpURLConnection) urlObj.openConnection();
+
+                    // 🧩 Giả lập trình duyệt Chrome
+                    conn.setRequestProperty("User-Agent",
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                                    "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                                    "Chrome/120.0.0.0 Safari/537.36");
+                    conn.setRequestProperty("Accept-Encoding", "gzip, deflate");
+                    conn.setRequestProperty("Cache-Control", "no-cache");
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        String etag = conn.getHeaderField("ETag");
+                        String lastModified = conn.getHeaderField("Last-Modified");
+
+                        // Nếu server không gửi header thì tự sinh fallback
+                        if (etag == null || etag.isBlank()) {
+                            etag = "auto-" + System.currentTimeMillis();
+                        }
+                        if (lastModified == null || lastModified.isBlank()) {
+                            lastModified = new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", java.util.Locale.US)
+                                    .format(new java.util.Date());
+                        }
+
+                        System.out.println("📡 Header Info:");
+                        System.out.println("   ➤ ETag: " + etag);
+                        System.out.println("   ➤ Last-Modified: " + lastModified);
+
+                        // 🧩 Lấy nội dung HTML từ WebEngine
+                        String htmlContent = (String) engine.executeScript("document.documentElement.outerHTML");
+                        byte[] bytes = htmlContent.getBytes(StandardCharsets.UTF_8);
+
+                        // ✅ Lưu cache vào server
+                        saveResourceCache(finalUrl, bytes, "text/html", etag, lastModified, Integer.parseInt(currentId));
+                    } else {
+                        System.out.println("⚠️ Server trả về mã lỗi: " + responseCode);
+                    }
+
+                    conn.disconnect();
+
+                } catch (Exception e) {
+                    System.out.println("⚠️ Không thể lấy thông tin header hoặc lưu cache cho: " + finalUrl);
+                    e.printStackTrace();
                 }
 
                 manualLoad = false; // reset flag
@@ -434,6 +480,36 @@ public class NewTabController implements Initializable {
                     e.printStackTrace();
                 }
             }
+        }
+    }
+
+    private void saveResourceCache(String resourceUrl, byte[] content, String contentType,
+                                   String etag, String lastModified, int userId) {
+        try {
+            if (userId == 0 || resourceUrl == null || resourceUrl.isEmpty()) return;
+
+            Message req = new Message();
+            req.getData().put("action", "save_resource_cache");
+            req.getData().put("user_id", userId);
+            req.getData().put("resource_url", resourceUrl);
+            req.getData().put("content_type", contentType != null ? contentType : "application/octet-stream");
+            req.getData().put("etag", etag);
+            req.getData().put("last_modified", lastModified);
+
+            // 👉 encode nội dung file thành base64 để gửi qua mạng
+            String base64Content = Base64.getEncoder().encodeToString(content);
+            req.getData().put("content", base64Content);
+            req.getData().put("size", content.length);
+
+            Message res = sendRequest(req);
+            if ("success".equals(res.get("status"))) {
+                System.out.println("💾 Đã lưu cache: " + resourceUrl);
+            } else {
+                System.out.println("⚠️ Không thể lưu cache cho: " + resourceUrl);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -1088,11 +1164,13 @@ public class NewTabController implements Initializable {
         MenuItem inspectItem = new MenuItem("🧩 Kiểm tra mã HTML");
         MenuItem headItem = new MenuItem("Hiện Header / POST");
         MenuItem cookieItem = new MenuItem("🍪 Xem Cookie"); // <-- Thêm dòng này
-        contextMenu.getItems().addAll(inspectItem , headItem , new SeparatorMenuItem(), cookieItem);
+        MenuItem cacheItem = new MenuItem("🗂️ Xem Resource Cache"); // 🆕 Thêm menu mới
+        contextMenu.getItems().addAll(inspectItem , headItem , new SeparatorMenuItem(), cookieItem, cacheItem);
 
         inspectItem.setOnAction(e -> toggleHtmlInspector());
         headItem.setOnAction(e -> showHeadAndPostInspectorDialog());
         cookieItem.setOnAction(e -> showCookieDialog()); // <-- Gọi hàm mới
+        cacheItem.setOnAction(e -> showResourceCacheDialog()); // 🆕 Gọi hàm mới
 
         webView.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
             if (event.getButton() == MouseButton.SECONDARY) {
@@ -1331,6 +1409,15 @@ public class NewTabController implements Initializable {
             Dialog<Void> dialog = new Dialog<>();
             dialog.setTitle("🍪 Trình quản lý Cookie");
             dialog.setHeaderText("Tên miền: " + host);
+            // 🎨 CSS Gradient cho dialog
+            String gradientStyle = """
+                -fx-background-color: linear-gradient(to bottom right, rgb(255,148,114), rgb(242,112,156));
+                -fx-border-color: white;
+                -fx-border-width: 2;
+                -fx-background-radius: 15;
+                -fx-border-radius: 15;
+            """;
+            dialog.getDialogPane().setStyle(gradientStyle);
             dialog.getDialogPane().setPrefSize(850, 500);
 
             TableView<Cookies> table = new TableView<>();
@@ -1446,6 +1533,188 @@ public class NewTabController implements Initializable {
             e.printStackTrace();
         }
     }
+
+    private void showResourceCacheDialog() {
+        try {
+            // 1️⃣ Lấy URL hiện tại
+            String currentUrl = webView.getEngine().getLocation();
+            if (currentUrl == null || currentUrl.isEmpty()) {
+                new Alert(Alert.AlertType.WARNING, "Không có URL hợp lệ để xem cache.").show();
+                return;
+            }
+
+            // 2️⃣ Gửi yêu cầu lấy cache
+            Message req = new Message();
+            req.put("action", "get_resource_cache");
+            req.put("user_id", currentId);
+            req.put("resource_url", currentUrl);
+
+            Message res = sendRequest(req);
+            String status = (String) res.get("status");
+            if (!"success".equals(status)) {
+                new Alert(Alert.AlertType.INFORMATION,
+                        (String) res.getOrDefault("message", "Không thể lấy cache")).show();
+                return;
+            }
+
+            // 3️⃣ Lấy danh sách cache
+            List<Map<String, Object>> caches = (List<Map<String, Object>>) res.get("caches");
+            if (caches == null || caches.isEmpty()) {
+                new Alert(Alert.AlertType.INFORMATION, "Không có cache hợp lệ cho URL này.").show();
+                return;
+            }
+
+            // 4️⃣ Map dữ liệu vào danh sách Cache model
+            ObservableList<Cache> cacheList = FXCollections.observableArrayList();
+            for (Map<String, Object> c : caches) {
+                Cache cache = new Cache();
+                cache.setId(((Number) c.get("id")).intValue());
+                cache.setResourceUrl((String) c.get("resource_url"));
+                cache.setEtag((String) c.get("etag"));
+                cache.setContentType((String) c.get("content_type"));
+                cache.setSize(((Number) c.get("size")).intValue());
+
+                cache.setLastModified(parseTimestamp(c.get("last_modified")));
+                cache.setRecvTime(parseTimestamp(c.get("recv_time")));
+                cache.setExpireTime(parseTimestamp(c.get("expire_time")));
+                cacheList.add(cache);
+            }
+
+            // 5️⃣ Tạo bảng TableView
+            TableView<Cache> table = new TableView<>(cacheList);
+            table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+            TableColumn<Cache, String> colUrl = new TableColumn<>("🌐 Resource URL");
+            colUrl.setCellValueFactory(new PropertyValueFactory<>("resourceUrl"));
+
+            TableColumn<Cache, String> colEtag = new TableColumn<>("📦 ETag");
+            colEtag.setCellValueFactory(new PropertyValueFactory<>("etag"));
+
+            TableColumn<Cache, String> colType = new TableColumn<>("📁 Content-Type");
+            colType.setCellValueFactory(new PropertyValueFactory<>("contentType"));
+
+            TableColumn<Cache, Integer> colSize = new TableColumn<>("📏 Size");
+            colSize.setCellValueFactory(new PropertyValueFactory<>("size"));
+
+            TableColumn<Cache, String> colModified = new TableColumn<>("🕓 Last Modified");
+            colModified.setCellValueFactory(new PropertyValueFactory<>("lastModified"));
+
+            TableColumn<Cache, String> colRecv = new TableColumn<>("⏰ Received");
+            colRecv.setCellValueFactory(new PropertyValueFactory<>("recvTime"));
+
+            TableColumn<Cache, String> colExpire = new TableColumn<>("🕒 Expire Time");
+            colExpire.setCellValueFactory(new PropertyValueFactory<>("expireTime"));
+
+            // 6️⃣ Cột hành động: xóa từng cache
+            TableColumn<Cache, Void> colAction = new TableColumn<>("⚙️ Hành động");
+            colAction.setCellFactory(param -> new TableCell<>() {
+                private final Button deleteBtn = new Button("🗑️ Xóa");
+
+                {
+                    deleteBtn.setOnAction(e -> {
+                        Cache cache = getTableView().getItems().get(getIndex());
+                        deleteCacheById(cache.getId());
+                        getTableView().getItems().remove(cache); // cập nhật UI
+                    });
+                    deleteBtn.getStyleClass().add("danger-btn");
+                }
+
+                @Override
+                protected void updateItem(Void item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setGraphic(empty ? null : deleteBtn);
+                }
+            });
+
+            table.getColumns().addAll(colUrl, colEtag, colType, colSize, colModified, colRecv, colExpire, colAction);
+
+            // 7️⃣ Nút xóa tất cả cache của URL hiện tại
+//            Button clearAllBtn = new Button("🧹 Xóa toàn bộ cache của URL này");
+//            clearAllBtn.setOnAction(e -> {
+//                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+//                        "Bạn có chắc muốn xóa toàn bộ cache cho URL này?",
+//                        ButtonType.YES, ButtonType.NO);
+//                confirm.setHeaderText("Xác nhận hành động");
+//                confirm.showAndWait().ifPresent(btn -> {
+//                    if (btn == ButtonType.YES) {
+//                        deleteAllCacheForUrl(currentUrl);
+//                        table.getItems().clear();
+//                    }
+//                });
+//            });
+
+            // 8️⃣ Hiển thị Dialog
+            VBox vbox = new VBox(10, table);
+            vbox.setPadding(new Insets(10));
+
+            Dialog<Void> dialog = new Dialog<>();
+            dialog.setTitle("Quản lý Resource Cache");
+            dialog.getDialogPane().setContent(vbox);
+            dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            dialog.setResizable(true);
+            // 🎨 CSS Gradient cho dialog
+            String gradientStyle = """
+                -fx-background-color: linear-gradient(to bottom right, rgb(255,148,114), rgb(242,112,156));
+                -fx-border-color: white;
+                -fx-border-width: 2;
+                -fx-background-radius: 15;
+                -fx-border-radius: 15;
+            """;
+            dialog.getDialogPane().setStyle(gradientStyle);
+            dialog.getDialogPane().setPrefSize(950, 500);
+            dialog.show();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Lỗi khi tải cache: " + ex.getMessage()).show();
+        }
+    }
+
+    private Timestamp parseTimestamp(Object val) {
+        if (val == null) return null;
+        try {
+            return Timestamp.valueOf(val.toString());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // 🔹 Xóa 1 cache theo id
+    private void deleteCacheById(int cacheId) {
+        try {
+            Message req = new Message();
+            req.put("action", "delete_resource_cache");
+            req.put("cache_id", cacheId);
+
+            Message res = sendRequest(req);
+            String msg = (String) res.getOrDefault("message", "Không rõ kết quả");
+            new Alert(Alert.AlertType.INFORMATION, msg).show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Lỗi khi xóa cache: " + e.getMessage()).show();
+        }
+    }
+
+    // 🔹 Xóa tất cả cache của 1 URL theo user
+    private void deleteAllCacheForUrl(String resourceUrl) {
+        try {
+            Message req = new Message();
+            req.put("action", "delete_all_resource_cache");
+            req.put("user_id", currentId);
+            req.put("resource_url", resourceUrl);
+
+            Message res = sendRequest(req);
+            String msg = (String) res.getOrDefault("message", "Không rõ kết quả");
+            new Alert(Alert.AlertType.INFORMATION, msg).show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Lỗi khi xóa toàn bộ cache: " + e.getMessage()).show();
+        }
+    }
+
+
 
 
     //=================================================================================

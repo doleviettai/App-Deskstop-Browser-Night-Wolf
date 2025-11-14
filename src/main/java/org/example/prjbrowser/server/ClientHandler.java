@@ -9,10 +9,11 @@ import org.example.prjbrowser.model.database;
 import java.io.*;
 import java.net.Socket;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 public class ClientHandler implements Runnable {
     private Socket socket;
@@ -627,25 +628,36 @@ public class ClientHandler implements Runnable {
                     check.setString(3, name);
                     ResultSet rs = check.executeQuery();
 
-                    if (!rs.next()) {
-                        // --- 2. Nếu chưa có, thì INSERT ---
-                        PreparedStatement ps = conn.prepareStatement("""
+                    if (rs.next()) {
+                        // --- 2. Nếu đã có, UPDATE value + thời gian truy cập ---
+                        int cookieId = rs.getInt("id");
+                        PreparedStatement update = conn.prepareStatement("""
+                            UPDATE cookies 
+                            SET value = ?, last_access_time = NOW() 
+                            WHERE id = ?
+                        """);
+                        update.setString(1, value);
+                        update.setInt(2, cookieId);
+                        update.executeUpdate();
+                        update.close();
+
+                        res.put("status", "updated");
+                        res.put("message", "Cookie đã tồn tại, cập nhật giá trị mới");
+                    } else {
+                        // --- 3. Nếu chưa có, INSERT cookie mới ---
+                        PreparedStatement insert = conn.prepareStatement("""
                             INSERT INTO cookies (user_id, host_key, name, value, creation_time, last_access_time)
                             VALUES (?, ?, ?, ?, NOW(), NOW())
                         """);
-                        ps.setInt(1, userId);
-                        ps.setString(2, host);
-                        ps.setString(3, name);
-                        ps.setString(4, value);
-                        ps.executeUpdate();
-                        ps.close();
+                        insert.setInt(1, userId);
+                        insert.setString(2, host);
+                        insert.setString(3, name);
+                        insert.setString(4, value);
+                        insert.executeUpdate();
+                        insert.close();
 
-                        res.put("status", "success");
-                        res.put("message", "Cookie mới đã được lưu");
-                    } else {
-                        // --- 3. Nếu đã có, thì bỏ qua ---
-                        res.put("status", "skip");
-                        res.put("message", "Cookie đã tồn tại, bỏ qua lưu trùng");
+                        res.put("status", "inserted");
+                        res.put("message", "Đã lưu cookie mới");
                     }
 
                     rs.close();
@@ -723,6 +735,218 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                case "save_resource_cache": {
+                    try {
+                        int userId = Integer.parseInt(req.get("user_id").toString());
+                        String resourceUrl = (String) req.get("resource_url");
+                        String etag = (String) req.getOrDefault("etag", null);
+                        String lastModifiedRaw = (String) req.getOrDefault("last_modified", null);
+                        String contentType = (String) req.getOrDefault("content_type", "application/octet-stream");
+                        String base64Content = (String) req.get("content");
+                        int size = Integer.parseInt(req.get("size").toString());
+
+                        byte[] content = Base64.getDecoder().decode(base64Content);
+
+                        int urlId = getOrCreateUrlId(conn, resourceUrl);
+
+                        // ✅ Parse Last-Modified (hỗ trợ ICT)
+                        String lastModifiedFormatted = null;
+                        if (lastModifiedRaw != null && !lastModifiedRaw.isEmpty()) {
+                            try {
+                                // 👉 Bước 1: Chuẩn hóa timezone ICT -> GMT+07:00
+                                String fixed = lastModifiedRaw
+                                        .replace("ICT", "GMT+07:00")
+                                        .replace("GMT+7", "GMT+07:00"); // thêm fallback
+
+                                // 👉 Bước 2: Dùng formatter hỗ trợ offset dạng +07:00
+                                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH);
+                                ZonedDateTime zoned = ZonedDateTime.parse(fixed, formatter);
+
+                                // 👉 Bước 3: Chuyển về dạng LocalDateTime phù hợp để lưu DB
+                                LocalDateTime local = zoned.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
+                                lastModifiedFormatted = local.toString().replace('T', ' ');
+
+                                System.out.println("✅ Parsed Last-Modified: " + lastModifiedFormatted);
+                            } catch (Exception ex) {
+                                System.out.println("⚠️ Không thể parse Last-Modified: " + lastModifiedRaw);
+                                lastModifiedFormatted = null;
+                            }
+                        }
+
+
+                        PreparedStatement ps = conn.prepareStatement("""
+                            INSERT INTO resource_cache 
+                                (url_id, user_id, resource_url, etag, last_modified, content, content_type, size, recv_time, expire_time)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))
+                            ON DUPLICATE KEY UPDATE 
+                                content = VALUES(content),
+                                etag = VALUES(etag),
+                                last_modified = VALUES(last_modified),
+                                content_type = VALUES(content_type),
+                                recv_time = NOW(),
+                                expire_time = DATE_ADD(NOW(), INTERVAL 7 DAY),
+                                size = VALUES(size)
+                        """);
+
+                        ps.setInt(1, urlId);
+                        ps.setInt(2, userId);
+                        ps.setString(3, resourceUrl);
+                        ps.setString(4, etag);
+                        ps.setString(5, lastModifiedFormatted);
+                        ps.setBytes(6, content);
+                        ps.setString(7, contentType);
+                        ps.setInt(8, size);
+                        ps.executeUpdate();
+                        ps.close();
+
+                        res.put("status", "success");
+                        res.put("message", "✅ Cache saved or updated successfully!");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        res.put("status", "error");
+                        res.put("message", "❌ " + e.getMessage());
+                    }
+                    break;
+                }
+
+                case "get_resource_cache": {
+                    try {
+                        int userId = Integer.parseInt(req.get("user_id").toString());
+                        String resourceUrl = (String) req.get("resource_url");
+
+                        // ✅ Chuẩn hóa URL cho chắc ăn (tránh / cuối)
+                        if (resourceUrl != null && resourceUrl.endsWith("/")) {
+                            resourceUrl = resourceUrl.substring(0, resourceUrl.length() - 1);
+                        }
+
+                        // 🔹 1️⃣ Tìm url_id tương ứng (KHÔNG tạo mới)
+                        int urlId = -1;
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id FROM urls WHERE url = ? LIMIT 1")) {
+                            ps.setString(1, resourceUrl);
+                            ResultSet rs = ps.executeQuery();
+                            if (rs.next()) {
+                                urlId = rs.getInt("id");
+                            }
+                            rs.close();
+                        }
+
+                        if (urlId == -1) {
+                            // Không tìm thấy url_id
+                            res.put("status", "not_found");
+                            res.put("message", "Không tìm thấy cache cho URL này (chưa có trong bảng urls)");
+                            break;
+                        }
+
+                        // 🔹 2️⃣ Truy vấn các cache tương ứng (theo url_id + user_id)
+                        String sql = """
+            SELECT *
+            FROM resource_cache
+            WHERE url_id = ? AND user_id = ?
+            ORDER BY recv_time DESC
+        """;
+                        PreparedStatement ps = conn.prepareStatement(sql);
+                        ps.setInt(1, urlId);
+                        ps.setInt(2, userId);
+                        ResultSet rs = ps.executeQuery();
+
+                        List<Map<String, Object>> caches = new ArrayList<>();
+                        while (rs.next()) {
+                            Timestamp expireTime = rs.getTimestamp("expire_time");
+                            boolean expired = expireTime != null && expireTime.before(new Timestamp(System.currentTimeMillis()));
+
+                            if (!expired) {
+                                Map<String, Object> cache = new HashMap<>();
+                                cache.put("id", rs.getInt("id"));
+                                cache.put("resource_url", rs.getString("resource_url"));
+                                cache.put("etag", rs.getString("etag"));
+                                cache.put("last_modified", String.valueOf(rs.getTimestamp("last_modified")));
+                                cache.put("content", Base64.getEncoder().encodeToString(rs.getBytes("content")));
+                                cache.put("content_type", rs.getString("content_type"));
+                                cache.put("recv_time", String.valueOf(rs.getTimestamp("recv_time")));
+                                cache.put("expire_time", String.valueOf(rs.getTimestamp("expire_time")));
+                                cache.put("size", rs.getInt("size"));
+                                caches.add(cache);
+                            }
+                        }
+
+                        rs.close();
+                        ps.close();
+
+                        // 🔹 3️⃣ Trả kết quả về client
+                        if (caches.isEmpty()) {
+                            res.put("status", "not_found");
+                            res.put("message", "Không tìm thấy cache nào hợp lệ cho tài nguyên này");
+                        } else {
+                            res.put("status", "success");
+                            res.put("caches", caches);
+                        }
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        res.put("status", "error");
+                        res.put("message", "❌ Lỗi khi lấy cache: " + e.getMessage());
+                    }
+                    break;
+                }
+
+
+                // 🔹 Xóa cache theo ID
+                case "delete_resource_cache": {
+                    try {
+                        int cacheId = Integer.parseInt(req.get("cache_id").toString());
+                        PreparedStatement ps = conn.prepareStatement("DELETE FROM resource_cache WHERE id = ?");
+                        ps.setInt(1, cacheId);
+
+                        int affected = ps.executeUpdate();
+                        ps.close();
+
+                        if (affected > 0) {
+                            res.put("status", "success");
+                            res.put("message", "🗑️ Xóa cache thành công (ID: " + cacheId + ")");
+                        } else {
+                            res.put("status", "not_found");
+                            res.put("message", "Không tìm thấy cache cần xóa");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        res.put("status", "error");
+                        res.put("message", "❌ Lỗi khi xóa cache: " + e.getMessage());
+                    }
+                    break;
+                }
+
+                // 🔹 Xóa toàn bộ cache của user theo URL
+                case "delete_all_resource_cache": {
+                    try {
+                        int userId = Integer.parseInt(req.get("user_id").toString());
+                        String resourceUrl = (String) req.get("resource_url");
+
+                        Integer urlId = getUrlIdIfExists(conn, resourceUrl);
+                        if (urlId == null) {
+                            res.put("status", "not_found");
+                            res.put("message", "Không tìm thấy URL trong bảng urls");
+                            break;
+                        }
+
+                        PreparedStatement ps = conn.prepareStatement("""
+            DELETE FROM resource_cache WHERE url_id = ? AND user_id = ?
+        """);
+                        ps.setInt(1, urlId);
+                        ps.setInt(2, userId);
+
+                        int affected = ps.executeUpdate();
+                        ps.close();
+
+                        res.put("status", "success");
+                        res.put("message", "🧹 Đã xóa " + affected + " cache cho URL hiện tại");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        res.put("status", "error");
+                        res.put("message", "❌ Lỗi khi xóa tất cả cache: " + e.getMessage());
+                    }
+                    break;
+                }
 
 
 
@@ -745,5 +969,49 @@ public class ClientHandler implements Runnable {
 
         return res;
     }
+
+    private int getOrCreateUrlId(Connection conn, String url) throws SQLException {
+        int id = -1;
+
+        // 🔹 1️⃣ Kiểm tra xem URL đã tồn tại chưa
+        String select = "SELECT id FROM urls WHERE url = ?";
+        try (PreparedStatement ps = conn.prepareStatement(select)) {
+            ps.setString(1, url);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                id = rs.getInt("id");
+            }
+        }
+
+        // 🔹 2️⃣ Nếu chưa có → tạo mới
+        if (id == -1) {
+            String insert = "INSERT INTO urls (url, last_visit_time) VALUES (?, NOW())";
+            try (PreparedStatement ps = conn.prepareStatement(insert, Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, url);
+                ps.executeUpdate();
+                ResultSet rs = ps.getGeneratedKeys();
+                if (rs.next()) {
+                    id = rs.getInt(1);
+                }
+            }
+        }
+
+        return id;
+    }
+
+    private Integer getUrlIdIfExists(Connection conn, String resourceUrl) throws SQLException {
+        Integer id = null;
+        String sql = "SELECT id FROM urls WHERE url = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, resourceUrl);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                id = rs.getInt("id");
+            }
+            rs.close();
+        }
+        return id;
+    }
+
 
 }
