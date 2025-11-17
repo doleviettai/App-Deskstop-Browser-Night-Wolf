@@ -103,7 +103,7 @@
                         <left>
                             <StackPane fx:id="leftBox" prefWidth="250">
                                 <StackPane fx:id="menuContainer" prefWidth="250">
-                                    <VBox fx:id="menuVBox" prefWidth="250" spacing="10" style="-fx-background-color: #f0f0f0;">
+                                    <VBox fx:id="menuVBox" prefWidth="250" spacing="10" styleClass="to_top">
                                         <padding><Insets bottom="10" left="10" right="10" top="10" /></padding>
 
                                         <TextField fx:id="searchField" promptText="Tìm hộp thoại..." />

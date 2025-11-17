@@ -30,6 +30,7 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebHistory;
 import javafx.scene.web.WebView;
@@ -2308,9 +2309,12 @@ public class NewTabController implements Initializable {
         });
     }
 
-    /** Mở conversation và hiển thị tất cả tin nhắn (user + AI) */
+    /**
+     * Mở conversation và hiển thị tất cả tin nhắn (user + AI)
+     */
     private void openConversation(int conversationId) {
         currentConversationId = conversationId;
+
         if (chatVBox != null) chatVBox.getChildren().clear();
 
         Message request = new Message();
@@ -2320,6 +2324,7 @@ public class NewTabController implements Initializable {
         new Thread(() -> {
             try {
                 Message response = sendRequest(request);
+
                 Platform.runLater(() -> {
                     if ("ok".equals(response.getOrDefault("status", ""))) {
                         List<Messages> messages =
@@ -2327,17 +2332,37 @@ public class NewTabController implements Initializable {
 
                         for (Messages msg : messages) {
                             boolean isUser = !"AI".equalsIgnoreCase(msg.getSender());
-                            addChatBubble(msg, isUser);
+
+                            // Loại bỏ prefix "AI: " nếu sender là AI và có prefix
+                            String content = msg.getContent();
+                            if (!isUser && content != null && content.startsWith("AI: ")) {
+                                content = content.substring(4).trim(); // cắt "AI: "
+                                msg.setContent(content);
+                            }
+
+                            // Nếu AI chưa có content, hiện GIF
+                            if (!isUser && (msg.getContent() == null || msg.getContent().isEmpty())) {
+                                addChatBubbleWithGif(msg, false, "/Image/Running log.gif");
+                            } else {
+                                // Hiển thị text bình thường, auto wrap đầy đủ
+                                addChatBubbleWithGif(msg, isUser, null);
+                            }
                         }
 
-                        if (chatScrollPane != null) chatScrollPane.setVvalue(1.0);
+                        // Scroll xuống cuối
+                        if (chatScrollPane != null) {
+                            chatScrollPane.layout();
+                            chatScrollPane.setVvalue(1.0);
+                        }
+
                     } else {
                         showAlert("Error", (String) response.getOrDefault("message", "Không lấy được lịch sử chat"));
                     }
                 });
+
             } catch (Exception e) {
                 e.printStackTrace();
-                showAlert("Error", "Lỗi mở conversation: " + e.getMessage());
+                Platform.runLater(() -> showAlert("Error", "Lỗi mở conversation: " + e.getMessage()));
             }
         }).start();
     }
@@ -2350,19 +2375,11 @@ public class NewTabController implements Initializable {
         String text = messageField.getText().trim();
         if (text.isEmpty() || currentConversationId == -1) return;
 
-        Message request = new Message();
-        request.put("action", "send_message");
-        request.put("conversationId", currentConversationId);
-        request.put("content", text);
-
-        // --- Tạo chat bubble cho user ngay ---
+        // --- User bubble ---
         Messages userMsg = new Messages(0, currentConversationId, "user", text);
-        addChatBubble(userMsg, true);
+        addChatBubble(userMsg, true); // TextArea cho user, không thêm "user:"
 
-        // --- Tạo chat bubble "AI đang suy nghĩ" ---
-//        Messages aiPendingMsg = new Messages(0, currentConversationId, "ai", "…"); // dấu 3 chấm
-//        HBox aiContainer = addChatBubble(aiPendingMsg, false);
-        // --- Tạo chat bubble AI với GIF "đang suy nghĩ" ---
+        // --- AI bubble: GIF "đang suy nghĩ" ---
         Messages aiPendingMsg = new Messages(0, currentConversationId, "ai", "");
         HBox aiContainer = addChatBubbleWithGif(aiPendingMsg, false, "/Image/Running dog.gif");
 
@@ -2371,7 +2388,13 @@ public class NewTabController implements Initializable {
 
         new Thread(() -> {
             try {
+                Message request = new Message();
+                request.put("action", "send_message");
+                request.put("conversationId", currentConversationId);
+                request.put("content", text);
+
                 Message response = sendRequest(request);
+
                 Platform.runLater(() -> {
                     if ("ok".equals(response.getOrDefault("status", ""))) {
                         Messages aiMsg = (Messages) response.get("aiMessage");
@@ -2379,34 +2402,36 @@ public class NewTabController implements Initializable {
                             VBox containerVBox = (VBox) aiContainer.getChildren().get(0);
                             containerVBox.getChildren().clear(); // Xóa GIF
 
-                            // --- Tạo TextArea với style giống addChatBubble ---
-                            TextArea textArea = new TextArea(aiMsg.getContent());
-                            textArea.setWrapText(true);
-                            textArea.setEditable(false);
-                            textArea.setFocusTraversable(false);
-                            textArea.setMouseTransparent(false);
-                            textArea.setStyle(
+                            // --- Loại bỏ prefix "AI: " nếu có ---
+                            String aiContent = aiMsg.getContent();
+                            if (aiContent.startsWith("AI: ")) {
+                                aiContent = aiContent.substring(4).trim();
+                            }
+
+                            // --- AI bubble: Label auto wrap, skyblue, full text ---
+                            Label aiLabel = new Label(aiContent);
+                            aiLabel.setWrapText(true);
+                            aiLabel.setMaxWidth(400);
+                            aiLabel.setStyle(
                                     "-fx-background-color: skyblue;" +
                                             "-fx-background-radius: 12;" +
                                             "-fx-font-size: 14px;" +
                                             "-fx-text-fill: black;" +
-                                            "-fx-border-color: transparent;" +
-                                            "-fx-focus-color: transparent;" +
-                                            "-fx-faint-focus-color: transparent;"
+                                            "-fx-padding: 10;"
                             );
-                            textArea.setCursor(Cursor.TEXT);
-                            textArea.setMaxWidth(400);
 
-                            // --- Chiều cao tự động ---
-                            Text tempText = new Text(aiMsg.getContent());
+                            // --- Tính chiều cao tự động dựa trên nội dung ---
+                            Text tempText = new Text(aiContent);
                             tempText.setFont(Font.font(14));
-                            tempText.setWrappingWidth(380);
-                            double height = tempText.getLayoutBounds().getHeight() + 20;
-                            textArea.setPrefHeight(height);
+                            tempText.setWrappingWidth(380); // padding + border
+                            double textHeight = tempText.getLayoutBounds().getHeight() + 20;
+                            aiLabel.setMinHeight(textHeight);
+                            aiLabel.setPrefHeight(textHeight);
+                            aiLabel.setMaxHeight(textHeight);
 
-                            containerVBox.getChildren().add(textArea);
+                            containerVBox.getChildren().add(aiLabel);
 
-                            // --- Thêm lại feedback emojis như ban đầu ---
+                            // --- Feedback emojis ---
                             HBox reactionHBox = new HBox(5);
                             reactionHBox.setAlignment(Pos.CENTER_LEFT);
                             String[] emojis = {"👍", "❤️", "😆", "😮", "😢", "😡"};
@@ -2442,12 +2467,18 @@ public class NewTabController implements Initializable {
                             }
 
                             containerVBox.getChildren().add(reactionHBox);
-                        }
 
+                            // --- Scroll xuống cuối ---
+                            if (chatScrollPane != null) {
+                                chatScrollPane.layout();
+                                chatScrollPane.setVvalue(1.0);
+                            }
+                        }
                     } else {
                         showAlert("Error", (String) response.getOrDefault("message", "Không gửi được tin nhắn"));
                     }
                 });
+
             } catch (Exception e) {
                 e.printStackTrace();
                 Platform.runLater(() -> showAlert("Error", "Lỗi gửi tin nhắn: " + e.getMessage()));
@@ -2459,35 +2490,74 @@ public class NewTabController implements Initializable {
      * Thêm chat bubble, trả về outerContainer HBox để sau này có thể cập nhật nội dung
      */
     private HBox addChatBubble(Messages msg, boolean isUser) {
-        TextArea textArea = new TextArea(msg.getContent());
-        textArea.setWrapText(true);
-        textArea.setEditable(false);
-        textArea.setFocusTraversable(false);
-        textArea.setMouseTransparent(false);
-        textArea.setStyle(
-                "-fx-background-color: " + (isUser ? "yellowgreen" : "skyblue") + ";" +
-                        "-fx-background-radius: 12;" +
-                        "-fx-font-size: 14px;" +
-                        "-fx-text-fill: black;" +
-                        "-fx-border-color: transparent;" +
-                        "-fx-focus-color: transparent;" +
-                        "-fx-faint-focus-color: transparent;"
-        );
-        textArea.setCursor(Cursor.TEXT);
 
-        textArea.setMaxWidth(400);
-        Text tempText = new Text(msg.getContent());
-        tempText.setFont(Font.font(14));
-        tempText.setWrappingWidth(380);
-        double height = tempText.getLayoutBounds().getHeight() + 20;
-        textArea.setPrefHeight(height);
+        Node contentNode;
 
+        if (isUser) {
+            // ============================
+            // USER: TextArea tự tăng chiều cao
+            // ============================
+            TextArea textArea = new TextArea(msg.getContent());
+            textArea.setWrapText(true);
+            textArea.setEditable(false);
+            textArea.setFocusTraversable(false);
+            textArea.setMouseTransparent(false);
+            textArea.setCursor(Cursor.TEXT);
+
+            textArea.setStyle(
+                    "-fx-background-color: yellowgreen;" +
+                            "-fx-background-radius: 12;" +
+                            "-fx-font-size: 14px;" +
+                            "-fx-text-fill: black;" +
+                            "-fx-border-color: transparent;" +
+                            "-fx-focus-color: transparent;" +
+                            "-fx-faint-focus-color: transparent;"
+            );
+
+            textArea.setMaxWidth(400);
+
+            // Auto height
+            Text tempText = new Text(msg.getContent());
+            tempText.setFont(Font.font(14));
+            tempText.setWrappingWidth(380);
+            double height = tempText.getLayoutBounds().getHeight() + 20;
+
+            textArea.setMinHeight(height);
+            textArea.setPrefHeight(height);
+            textArea.setMaxHeight(height);
+
+            contentNode = textArea;
+
+        } else {
+            // ============================
+            // AI: Dùng Label (gọn, đẹp, không scroll)
+            // ============================
+            Label label = new Label(msg.getContent());
+            label.setWrapText(true);
+            label.setMaxWidth(400);
+
+            label.setStyle(
+                    "-fx-background-color: skyblue;" +
+                            "-fx-background-radius: 12;" +
+                            "-fx-padding: 10;" +
+                            "-fx-font-size: 14px;" +
+                            "-fx-text-fill: black;"
+            );
+
+            contentNode = label;
+        }
+
+        // ============================
+        // CONTAINER VBOX
+        // ============================
         VBox containerVBox = new VBox();
         containerVBox.setSpacing(5);
         containerVBox.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
-        containerVBox.getChildren().add(textArea);
+        containerVBox.getChildren().add(contentNode);
 
-        // --- Chỉ AI mới có feedback ---
+        // ============================
+        // FEEDBACK CHỈ DÀNH CHO AI
+        // ============================
         if (!isUser) {
             HBox reactionHBox = new HBox(5);
             reactionHBox.setAlignment(Pos.CENTER_LEFT);
@@ -2497,6 +2567,7 @@ public class NewTabController implements Initializable {
 
             for (int i = 0; i < emojis.length; i++) {
                 String key = feedbackKeys[i];
+
                 Button btn = new Button(emojis[i]);
                 btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;");
 
@@ -2527,6 +2598,9 @@ public class NewTabController implements Initializable {
             containerVBox.getChildren().add(reactionHBox);
         }
 
+        // ============================
+        // BỌC NGOÀI HBOX (để căn trái/phải)
+        // ============================
         HBox outerContainer = new HBox(containerVBox);
         outerContainer.setPadding(new Insets(5,10,5,10));
         outerContainer.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
@@ -2552,33 +2626,56 @@ public class NewTabController implements Initializable {
 
         Node contentNode;
 
+        // ================================
+        // HIỂN THỊ NỘI DUNG
+        // ================================
         if (isUser || (msg.getContent() != null && !msg.getContent().isEmpty())) {
-            // --- User hoặc AI đã có nội dung ---
-            TextArea textArea = new TextArea(msg.getContent());
-            textArea.setWrapText(true);
-            textArea.setEditable(false);
-            textArea.setFocusTraversable(false);
-            textArea.setMouseTransparent(false);
-            textArea.setStyle(
-                    "-fx-background-color: transparent;" + // background đã có trong contentContainer
-                            "-fx-font-size: 14px;" +
-                            "-fx-text-fill: black;" +
-                            "-fx-border-color: transparent;"
-            );
-            textArea.setCursor(Cursor.TEXT);
-            textArea.setMaxWidth(400);
 
-            // Chiều cao tự động
-            Text tempText = new Text(msg.getContent());
-            tempText.setFont(Font.font(14));
-            tempText.setWrappingWidth(380);
-            double height = tempText.getLayoutBounds().getHeight() + 20;
-            textArea.setPrefHeight(height);
+            if (isUser) {
+                // ------- USER: TextArea -------
+                TextArea textArea = new TextArea(msg.getContent());
+                textArea.setWrapText(true);
+                textArea.setEditable(false);
+                textArea.setFocusTraversable(false);
+                textArea.setMouseTransparent(false);
+                textArea.setStyle(
+                        "-fx-background-color: transparent;" +
+                                "-fx-font-size: 14px;" +
+                                "-fx-text-fill: black;" +
+                                "-fx-border-color: transparent;"
+                );
+                textArea.setMaxWidth(400);
 
-            contentNode = textArea;
+                // Auto resize height
+                Text tempText = new Text(msg.getContent());
+                tempText.setFont(Font.font(14));
+                tempText.setWrappingWidth(380);
+                double height = tempText.getLayoutBounds().getHeight() + 20;
+
+                textArea.setMinHeight(height);
+                textArea.setPrefHeight(height);
+                textArea.setMaxHeight(height);
+
+                contentNode = textArea;
+
+            } else {
+                // ------- AI: TextFlow (Auto grow height) -------
+                Text text = new Text(msg.getContent());
+                text.setStyle("-fx-font-size: 14px; -fx-fill: black;");
+
+                TextFlow flow = new TextFlow(text);
+                flow.setMaxWidth(400);
+                flow.setPrefWidth(400);
+                flow.setLineSpacing(3);
+
+                // Cho phép TextFlow auto expand theo nội dung
+                flow.setPadding(Insets.EMPTY);
+
+                contentNode = flow;
+            }
 
         } else {
-            // --- AI đang suy nghĩ: GIF ---
+            // ------- AI đang suy nghĩ: GIF -------
             Image gif = new Image(getClass().getResourceAsStream(gifPath));
             ImageView imageView = new ImageView(gif);
             imageView.setFitWidth(80);
@@ -2589,16 +2686,18 @@ public class NewTabController implements Initializable {
         contentContainer.getChildren().add(contentNode);
         containerVBox.getChildren().add(contentContainer);
 
-        // --- Chỉ AI mới có feedback ---
+        // ================================
+        // FEEDBACK CHỈ CHO AI
+        // ================================
         if (!isUser) {
             HBox reactionHBox = new HBox(5);
             reactionHBox.setAlignment(Pos.CENTER_LEFT);
 
             String[] emojis = {"👍", "❤️", "😆", "😮", "😢", "😡"};
-            String[] feedbackKeys = {"like","love","haha","wow","sad","angry"};
+            String[] keys = {"like","love","haha","wow","sad","angry"};
 
             for (int i = 0; i < emojis.length; i++) {
-                String key = feedbackKeys[i];
+                String key = keys[i];
                 Button btn = new Button(emojis[i]);
                 btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;");
 
@@ -2607,6 +2706,7 @@ public class NewTabController implements Initializable {
 
                 btn.setOnAction(e -> {
                     Node existingInput = null;
+
                     for (Node node : containerVBox.getChildren()) {
                         if ("feedbackInput".equals(node.getId())) {
                             existingInput = node;
@@ -2629,16 +2729,20 @@ public class NewTabController implements Initializable {
             containerVBox.getChildren().add(reactionHBox);
         }
 
-        HBox outerContainer = new HBox(containerVBox);
-        outerContainer.setPadding(new Insets(5,10,5,10));
-        outerContainer.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+        // ================================
+        // THÊM VÀO CHAT BOX
+        // ================================
+        HBox outer = new HBox(containerVBox);
+        outer.setPadding(new Insets(5,10,5,10));
+        outer.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
 
-        chatVBox.getChildren().add(outerContainer);
+        chatVBox.getChildren().add(outer);
+
+        // Auto scroll xuống cuối
         if (chatScrollPane != null) chatScrollPane.setVvalue(1.0);
 
-        // Trả về outerContainer và contentContainer để cập nhật sau này
-        outerContainer.setUserData(contentContainer);
-        return outerContainer;
+        outer.setUserData(contentContainer);
+        return outer;
     }
 
     private HBox showFeedbackInput(int messageId, String feedbackType) {
