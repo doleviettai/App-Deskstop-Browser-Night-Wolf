@@ -126,8 +126,8 @@ public class Cache {
     }
 
     // ===== Debug / Logging =====
-    @Override
-    public String toString() {
-        return STR."Cache{id=\{id}, urlId=\{urlId}, userId=\{userId}, resourceUrl='\{resourceUrl != null ? resourceUrl.substring(0, Math.min(50, resourceUrl.length())) + "..." : null}', etag='\{etag}', lastModified=\{lastModified}, content=\{content != null ? content.length + " bytes" : "null"}, contentType='\{contentType}', recvTime=\{recvTime}, expireTime=\{expireTime}, size=\{size}}";
-    }
+//    @Override
+//    public String toString() {
+//        return "Cache{id=\{id}, urlId=\{urlId}, userId=\{userId}, resourceUrl='\{resourceUrl != null ? resourceUrl.substring(0, Math.min(50, resourceUrl.length())) + "..." : null}', etag='\{etag}', lastModified=\{lastModified}, content=\{content != null ? content.length + " bytes" : "null"}, contentType='\{contentType}', recvTime=\{recvTime}, expireTime=\{expireTime}, size=\{size}}";
+//    }
 }

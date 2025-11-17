@@ -9,6 +9,7 @@ module org.example.prjbrowser {
     requires mysql.connector.java;
     requires org.fxmisc.richtext;
     requires jdk.jsobject;
+    requires com.google.gson;
 
 
     opens org.example.prjbrowser to javafx.fxml;

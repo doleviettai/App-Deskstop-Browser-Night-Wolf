@@ -1,13 +1,15 @@
 package org.example.prjbrowser.server;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.example.prjbrowser.common.Message;
 import org.example.prjbrowser.dao.SessionsDAO;
-import org.example.prjbrowser.model.Bookmarks;
-import org.example.prjbrowser.model.Jbcrypt;
-import org.example.prjbrowser.model.Sessions;
-import org.example.prjbrowser.model.database;
+import org.example.prjbrowser.model.*;
+
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.Socket;
+import java.net.URL;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -948,6 +950,42 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                case "list_conversations":
+                    handleListConversations(conn, req, res);
+                    break;
+
+                case "new_conversation":
+                    handleNewConversation(conn, req, res);
+                    break;
+
+                case "search_conversation":
+                    handleSearchConversation(conn, req, res);
+                    break;
+
+                case "delete_item_conversation":
+                    handleDeleteItemConversation(conn, req, res);
+                    break;
+
+                case "get_history":
+                    handleGetHistory(conn, req, res);
+                    break;
+
+                case "send_message":
+                    handleSendMessage(conn, req, res);
+                    break;
+
+                case "open_conversation":
+                    handleOpenConversation(conn, req, res);
+                    break;
+
+                case "add_or_update_feedback":
+                    handleAddOrUpMessageFeedback(conn, req, res);
+                    break;
+
+                case "delete_message_feedback":
+                    handleDeleteMessageFeedback(conn, req, res);
+                    break;
+
 
 
 
@@ -1013,5 +1051,552 @@ public class ClientHandler implements Runnable {
         return id;
     }
 
+    private void handleListConversations(Connection conn, Message request, Message response) throws SQLException {
+        Object uidObj = request.get("user_id");
+        int userId = -1;
+
+        if (uidObj instanceof Number) {
+            userId = ((Number) uidObj).intValue();
+        } else if (uidObj instanceof String) {
+            try {
+                userId = Integer.parseInt((String) uidObj);
+            } catch (NumberFormatException e) {
+                // invalid string
+            }
+        }
+
+        if (userId <= 0) {
+            response.put("status", "error");
+            response.put("message", "Missing or invalid user_id");
+            return;
+        }
+
+        List<Conversation> conversations = new ArrayList<>();
+
+        String sql = "SELECT id, user_id, title FROM conversations WHERE user_id=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                conversations.add(new Conversation(
+                        rs.getInt("id"),
+                        rs.getInt("user_id"),
+                        rs.getString("title")
+                ));
+            }
+        }
+
+        response.put("status", "ok");
+        response.put("action", "list_conversations");
+        response.put("conversations", conversations);
+    }
+
+    private void handleNewConversation(Connection conn, Message request, Message response) throws SQLException {
+        // ✅ Parse user_id an toàn
+        Object uidObj = request.get("user_id");
+        int userId = -1;
+
+        if (uidObj instanceof Number) {
+            userId = ((Number) uidObj).intValue();
+        } else if (uidObj instanceof String) {
+            try {
+                userId = Integer.parseInt((String) uidObj);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        if (userId <= 0) {
+            response.put("status", "error");
+            response.put("message", "Missing or invalid user_id");
+            return;
+        }
+
+        // Lấy title, mặc định "New Chat"
+        String title = (String) request.getOrDefault("title", "New Chat");
+
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO conversations(user_id, title) VALUES(?, ?)",
+                Statement.RETURN_GENERATED_KEYS)) {
+
+            ps.setInt(1, userId);
+            ps.setString(2, title);
+
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    if (keys.next()) {
+                        // Trả về đối tượng Conversation
+                        Conversation conv = new Conversation(keys.getInt(1), userId, title);
+                        response.put("status", "ok");
+                        response.put("action", "new_conversation");
+                        response.put("conversation", conv);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            response.put("status", "error");
+            response.put("message", "Database error: " + e.getMessage());
+        }
+    }
+
+    private void handleSearchConversation(Connection conn, Message request, Message response) throws SQLException {
+        // ✅ Parse user_id an toàn
+        Object uidObj = request.get("user_id");
+        int userId = -1;
+
+        if (uidObj instanceof Number) {
+            userId = ((Number) uidObj).intValue();
+        } else if (uidObj instanceof String) {
+            try {
+                userId = Integer.parseInt((String) uidObj);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        if (userId <= 0) {
+            response.put("status", "error");
+            response.put("message", "Missing or invalid user_id");
+            return;
+        }
+
+        String keyword = ((String) request.getOrDefault("keyword", "")).trim();
+
+        List<Conversation> result = new ArrayList<>();
+
+        String sql = "SELECT id, user_id, title FROM conversations WHERE user_id = ? AND title LIKE ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setString(2, "%" + keyword + "%"); // tìm gần đúng
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Conversation conv = new Conversation(
+                            rs.getInt("id"),
+                            rs.getInt("user_id"),
+                            rs.getString("title")
+                    );
+                    result.add(conv);
+                }
+            }
+
+            response.put("status", "ok");
+            response.put("action", "search_conversation");
+            response.put("conversations", result);
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            response.put("status", "error");
+            response.put("message", "Lỗi tìm kiếm conversation: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteItemConversation(Connection conn,Message request, Message response) throws SQLException {
+        int conversationId = (int) request.getOrDefault("conversationId", -1);
+        if (conversationId == -1) {
+            response.put("status", "error");
+            response.put("message", "Invalid conversation ID");
+            return;
+        }
+
+        try {
+            conn.setAutoCommit(false);
+            try {
+                // Xóa tất cả tin nhắn thuộc conversation
+                try (PreparedStatement psMsg = conn.prepareStatement(
+                        "DELETE FROM messages WHERE conversation_id=?")) {
+                    psMsg.setInt(1, conversationId);
+                    psMsg.executeUpdate();
+                }
+
+                // Xóa conversation chính
+                try (PreparedStatement psConv = conn.prepareStatement(
+                        "DELETE FROM conversations WHERE id=?")) {
+                    psConv.setInt(1, conversationId);
+                    int affected = psConv.executeUpdate();
+                    if (affected > 0) {
+                        conn.commit();
+                        response.put("status", "ok");
+                        response.put("message", "Đã xóa hội thoại thành công!");
+                    } else {
+                        conn.rollback();
+                        response.put("status", "error");
+                        response.put("message", "Không tìm thấy hội thoại để xóa.");
+                    }
+                }
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }catch (Exception e){
+
+        }
+    }
+
+    private void handleGetHistory(Connection conn,Message request, Message response) throws SQLException {
+        int conversationId = (int) request.getOrDefault("conversationId", -1);
+        if (conversationId == -1) {
+            response.put("status", "error");
+            response.put("message", "Invalid conversation ID");
+            return;
+        }
+
+        List<Messages> messages = new ArrayList<>();
+
+        try (
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id, sender, content FROM messages WHERE conversation_id=? ORDER BY id ASC")) {
+
+            ps.setInt(1, conversationId);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                messages.add(new Messages(
+                        rs.getInt("id"),
+                        conversationId,
+                        rs.getString("sender"),
+                        rs.getString("content")
+                ));
+            }
+        }
+
+        response.put("status", "ok");
+        response.put("action", "get_history");
+        response.put("messages", messages);
+    }
+
+    private void handleSendMessage(Connection conn,Message request, Message response) throws SQLException {
+        int conversationId = (int) request.getOrDefault("conversationId", -1);
+        String content = (String) request.getOrDefault("content", "");
+        if (conversationId == -1 || content.isEmpty()) {
+            response.put("status", "error");
+            response.put("message", "Invalid conversation ID or empty content");
+            return;
+        }
+
+        try {
+            // 1️⃣ Lưu tin nhắn user
+            int userMessageId;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO messages(conversation_id, sender, content) VALUES(?, 'user', ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                ps.setInt(1, conversationId);
+                ps.setString(2, content);
+                ps.executeUpdate();
+                ResultSet keys = ps.getGeneratedKeys();
+                userMessageId = keys.next() ? keys.getInt(1) : 0;
+            }
+
+            // 2️⃣ Lấy lịch sử tin nhắn gần nhất (ví dụ 10 tin)
+            List<Messages> history = new ArrayList<>();
+            try (PreparedStatement psHist = conn.prepareStatement(
+                    "SELECT sender, content FROM messages WHERE conversation_id=? ORDER BY id ASC")) {
+                psHist.setInt(1, conversationId);
+                ResultSet rs = psHist.executeQuery();
+                while (rs.next()) {
+                    history.add(new Messages(0, conversationId,
+                            rs.getString("sender"),
+                            rs.getString("content")));
+                }
+            }
+
+            // 3️⃣ Chuẩn bị context cho AI
+            StringBuilder context = new StringBuilder();
+            for (Messages msg : history) {
+                context.append(msg.getSender().equals("user") ? "User: " : "AI: ")
+                        .append(msg.getContent())
+                        .append("\n");
+            }
+            context.append("User: ").append(content); // tin nhắn mới
+
+            // 4️⃣ Gọi AI và lưu tin nhắn AI
+            String aiContent = getAIResponse(context.toString(), conversationId, conn);
+
+            // 5️⃣ Trả về client
+            Messages userMsg = new Messages(userMessageId, conversationId, "user", content);
+            Messages aiMsg = new Messages(0, conversationId, "ai", aiContent);
+
+            response.put("status", "ok");
+            response.put("action", "send_message");
+            response.put("userMessage", userMsg);
+            response.put("aiMessage", aiMsg);
+        }catch (Exception e) {
+            response.put("status", "error");
+            response.put("message", "Server error: " + e.getMessage());
+        }
+    }
+
+    private String getAIResponse(String context, int conversationId, Connection conn) {
+        try {
+            String aiResponse = callGeminiAPI(context); // gửi cả lịch sử và tin nhắn mới
+            saveAIMessage("", aiResponse, conversationId, conn); // lưu vào DB
+            return aiResponse;
+        } catch (Exception e) {
+            return "🤖 AI: Không thể trả lời câu hỏi của bạn. Lỗi: " + e.getMessage();
+        }
+    }
+
+
+    private void handleOpenConversation(Connection conn,Message request, Message response) throws SQLException {
+        int conversationId = (int) request.getOrDefault("conversationId", -1);
+        if (conversationId == -1) {
+            response.put("status", "error");
+            response.put("message", "Invalid conversation ID");
+            return;
+        }
+
+        try (
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id, user_id, title FROM conversations WHERE id=?")) {
+
+            ps.setInt(1, conversationId);
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                Conversation conv = new Conversation(
+                        rs.getInt("id"),
+                        rs.getInt("user_id"),
+                        rs.getString("title")
+                );
+                response.put("status", "ok");
+                response.put("action", "open_conversation");
+                response.put("conversation", conv);
+            } else {
+                response.put("status", "error");
+                response.put("message", "Conversation not found");
+            }
+        }
+    }
+
+
+    private String callGeminiAPI(String userMessage) throws Exception {
+//        String apiKey = "AIzaSyAQeRX9PMuyIH2OxHlET_VcdtTtdf46tsg";
+        String apiKey = "AIzaSyBbpyqGOBGMVH5nF6LhcBPwp4UWT01MP7I";
+//        String apiEndpoint =
+//                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+        String apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+
+        // ✅ Chuẩn JSON body
+        String jsonInputString = """
+    {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [{"text": "%s"}]
+        }
+      ]
+    }
+    """.formatted(userMessage.replace("\"", "\\\""));
+
+        URL url = new URL(apiEndpoint);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+        connection.setDoOutput(true);
+
+        try (OutputStream os = connection.getOutputStream()) {
+            byte[] input = jsonInputString.getBytes("utf-8");
+            os.write(input, 0, input.length);
+        }
+
+        int status = connection.getResponseCode();
+        InputStream stream = (status >= 200 && status < 300)
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, "utf-8"));
+        StringBuilder response = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            response.append(line);
+        }
+        reader.close();
+
+        String responseBody = response.toString();
+
+        // ✅ Parse JSON phản hồi chính xác
+        try {
+            JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
+            String aiResponse = json.getAsJsonArray("candidates")
+                    .get(0).getAsJsonObject()
+                    .getAsJsonObject("content")
+                    .getAsJsonArray("parts")
+                    .get(0).getAsJsonObject()
+                    .get("text").getAsString();
+            return aiResponse;
+        } catch (Exception e) {
+            return "Không thể phân tích phản hồi từ AI. Phản hồi: " + responseBody;
+        }
+    }
+
+    private void saveAIMessage(String userMessage, String aiMessage, int conversationId, Connection conn) throws SQLException {
+        // Lưu tin nhắn AI
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO messages(conversation_id, sender, content) VALUES(?, 'ai', ?)")) {
+            ps.setInt(1, conversationId);
+            ps.setString(2, aiMessage);
+            ps.executeUpdate();
+        }
+    }
+
+
+
+    private void saveQuestionAndAnswer(Connection conn,String question, String answer) throws SQLException {
+        try (
+             PreparedStatement checkStmt = conn.prepareStatement(
+                     "SELECT id FROM messages WHERE content = ?")) {
+            checkStmt.setString(1, question);
+            ResultSet rs = checkStmt.executeQuery();
+
+            if (rs.next()) {
+                return; // Nếu câu hỏi đã tồn tại, không cần lưu lại
+            }
+
+            // Lưu câu hỏi vào DB
+            try (PreparedStatement insertStmt = conn.prepareStatement(
+                    "INSERT INTO messages(conversation_id, sender, content) VALUES(?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                insertStmt.setInt(1, 1); // Giả sử Conversation ID là 1, điều chỉnh theo nhu cầu
+                insertStmt.setString(2, "user");
+                insertStmt.setString(3, question);
+                insertStmt.executeUpdate();
+            }
+
+            // Lưu câu trả lời từ AI
+            try (PreparedStatement aiResponseStmt = conn.prepareStatement(
+                    "INSERT INTO messages(conversation_id, sender, content) VALUES(?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                aiResponseStmt.setInt(1, 1); // Giả sử Conversation ID là 1
+                aiResponseStmt.setString(2, "ai");
+                aiResponseStmt.setString(3, answer);
+                aiResponseStmt.executeUpdate();
+            }
+        }
+    }
+
+    private void handleAddOrUpMessageFeedback(Connection conn, Message request, Message response) {
+        // ✅ Parse messageId an toàn
+        Object msgIdObj = request.get("messageId");
+        int messageId = -1;
+        if (msgIdObj instanceof Number) {
+            messageId = ((Number) msgIdObj).intValue();
+        } else if (msgIdObj instanceof String) {
+            try {
+                messageId = Integer.parseInt((String) msgIdObj);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        // ✅ Parse user_id an toàn
+        Object uidObj = request.get("user_id");
+        int userId = -1;
+        if (uidObj instanceof Number) {
+            userId = ((Number) uidObj).intValue();
+        } else if (uidObj instanceof String) {
+            try {
+                userId = Integer.parseInt((String) uidObj);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        if (messageId <= 0 || userId <= 0) {
+            response.put("status", "error");
+            response.put("message", "Missing or invalid messageId/user_id");
+            return;
+        }
+
+        String feedback = (String) request.get("feedback");
+        String comment = (String) request.getOrDefault("comment", "");
+
+        try {
+            // Kiểm tra đã có feedback chưa
+            try (PreparedStatement psCheck = conn.prepareStatement(
+                    "SELECT id FROM message_feedback WHERE message_id=? AND user_id=?")) {
+                psCheck.setInt(1, messageId);
+                psCheck.setInt(2, userId);
+
+                try (ResultSet rs = psCheck.executeQuery()) {
+                    if (rs.next()) {
+                        // Cập nhật nếu đã tồn tại
+                        int feedbackId = rs.getInt("id");
+                        try (PreparedStatement psUpdate = conn.prepareStatement(
+                                "UPDATE message_feedback SET feedback=?, comment=?, created_at=NOW() WHERE id=?")) {
+                            psUpdate.setString(1, feedback);
+                            psUpdate.setString(2, comment);
+                            psUpdate.setInt(3, feedbackId);
+                            psUpdate.executeUpdate();
+                        }
+                        response.put("status", "ok");
+                        response.put("message", "Cập nhật phản hồi thành công");
+                    } else {
+                        // Thêm mới nếu chưa có
+                        try (PreparedStatement psInsert = conn.prepareStatement(
+                                "INSERT INTO message_feedback(message_id,user_id,feedback,comment,created_at) VALUES(?,?,?,?,NOW())")) {
+                            psInsert.setInt(1, messageId);
+                            psInsert.setInt(2, userId);
+                            psInsert.setString(3, feedback);
+                            psInsert.setString(4, comment);
+                            psInsert.executeUpdate();
+                        }
+                        response.put("status", "ok");
+                        response.put("message", "Gửi phản hồi thành công");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            response.put("status", "error");
+            response.put("message", e.getMessage());
+        }
+    }
+
+
+    private void handleDeleteMessageFeedback(Connection conn, Message request, Message response) {
+        // ✅ Parse messageId an toàn
+        Object msgIdObj = request.get("messageId");
+        int messageId = -1;
+        if (msgIdObj instanceof Number) {
+            messageId = ((Number) msgIdObj).intValue();
+        } else if (msgIdObj instanceof String) {
+            try {
+                messageId = Integer.parseInt((String) msgIdObj);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        // ✅ Parse user_id an toàn
+        Object uidObj = request.get("user_id");
+        int userId = -1;
+        if (uidObj instanceof Number) {
+            userId = ((Number) uidObj).intValue();
+        } else if (uidObj instanceof String) {
+            try {
+                userId = Integer.parseInt((String) uidObj);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        if (messageId <= 0 || userId <= 0) {
+            response.put("status", "error");
+            response.put("message", "Missing or invalid messageId/user_id");
+            return;
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM message_feedback WHERE message_id=? AND user_id=?")) {
+
+            ps.setInt(1, messageId);
+            ps.setInt(2, userId);
+            int affected = ps.executeUpdate();
+
+            if (affected > 0) {
+                response.put("status", "ok");
+                response.put("message", "Xóa phản hồi thành công");
+            } else {
+                response.put("status", "error");
+                response.put("message", "Không tìm thấy phản hồi để xóa");
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            response.put("status", "error");
+            response.put("message", e.getMessage());
+        }
+    }
 
 }

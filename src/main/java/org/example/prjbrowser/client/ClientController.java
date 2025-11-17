@@ -33,6 +33,10 @@ public class ClientController implements Initializable {
     String id = "";
     String fullName = "Chưa đăng nhập";
     String username;
+    // Socket dài hạn cho toàn bộ app
+    private Socket socket;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
     public void Id(String id){
         this.id = id;
     }
@@ -43,6 +47,12 @@ public class ClientController implements Initializable {
 
     public void userName(String username){
         this.username = username;
+    }
+
+    public void setSocketClient(Socket socket , ObjectOutputStream out , ObjectInputStream in){
+        this.socket = socket;
+        this.out = out;
+        this.in = in;
     }
 
     private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
@@ -88,6 +98,7 @@ public class ClientController implements Initializable {
             // Lấy controller của tab mới
             NewTabController controller = loader.getController();
             controller.receiverNickName(id,username, fullName);
+            controller.setSocket(socket , out , in);
             controller.clearBookmarksUI();
             controller.loadUserBookmarks();
 

@@ -130,6 +130,14 @@ public class LoginController implements Initializable {
     private dialog dl = new dialog();
     private final AutoLoginService Als = AutoLoginService.getInstance();
 
+    private static final String SERVER_HOST = "localhost";
+    private static final int SERVER_PORT = 12345;
+
+    // Socket dài hạn cho toàn bộ app
+    private Socket socket;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
+
 
     @FXML
     private void onMousePressed(MouseEvent event) {
@@ -187,24 +195,49 @@ public class LoginController implements Initializable {
         }
     }
 
-    private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
-        Socket socket = new Socket("localhost", 12345);
-//        Socket socket = new Socket("172.20.10.2", 12345);
-//        Socket socket = new Socket("192.168.56.1", 12345);
-        ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-        ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+//    private Message sendRequest(Message request) throws IOException, ClassNotFoundException {
+//        Socket socket = new Socket("localhost", 12345);
+////        Socket socket = new Socket("172.20.10.2", 12345);
+////        Socket socket = new Socket("192.168.56.1", 12345);
+//        ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+//        ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+//
+//        out.writeObject(request);
+//        out.flush();
+//
+//        Message response = (Message) in.readObject();
+//
+//        in.close();
+//        out.close();
+//        socket.close();
+//
+//        return response;
+//    }
 
+    /** Kết nối server lâu dài, nếu đã kết nối thì không tạo lại */
+    private synchronized void connectToServer() throws IOException {
+        if (socket != null && !socket.isClosed()) return; // đã có kết nối
+        socket = new Socket(SERVER_HOST, SERVER_PORT);
+        out = new ObjectOutputStream(socket.getOutputStream());
+        in = new ObjectInputStream(socket.getInputStream());
+    }
+
+    /** Gửi request đến server qua socket dài hạn */
+    private synchronized Message sendRequest(Message request) throws IOException, ClassNotFoundException {
+        if (socket == null || socket.isClosed()) {
+            connectToServer(); // đảm bảo socket luôn sẵn sàng
+        }
+
+        // Gửi request
         out.writeObject(request);
         out.flush();
 
+        // Nhận response
         Message response = (Message) in.readObject();
-
-        in.close();
-        out.close();
-        socket.close();
 
         return response;
     }
+
 
     // ================== FORGOT CHECK ==================
     public void forgortXacthuc() {
@@ -390,6 +423,7 @@ public class LoginController implements Initializable {
         clientController.Id(id);
         clientController.userName(username);
         clientController.fullName(fullname);
+        clientController.setSocketClient(socket , out , in);
         clientController.closeTab();
 
         Stage stage = new Stage();

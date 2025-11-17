@@ -36,6 +36,11 @@
                         <FontAwesomeIconView glyphName="REFRESH" glyphSize="14" />
                     </graphic>
                 </Button>
+                <Button fx:id="toggleInspectButton">
+                    <graphic>
+                        <FontAwesomeIconView glyphName="COMMENTING" glyphSize="14" />
+                    </graphic>
+                </Button>
                 <Button fx:id="homeBtn" onAction="#home">
                     <graphic>
                         <FontAwesomeIconView glyphName="HOME" glyphSize="14" />
@@ -83,7 +88,70 @@
             <!-- SplitPane chứa WebView và vùng xem mã HTML -->
             <SplitPane fx:id="splitPane" dividerPositions="1.0" orientation="VERTICAL"> <!-- ban đầu WebView chiếm hết -->
                 <!-- Phần hiển thị web -->
-                <WebView fx:id="webView" />
+                <!-- ✅ LEFT panel vẫn tồn tại nhưng sẽ bị trượt ẩn bằng divider -->
+                <SplitPane fx:id="splitPane_chilren" dividerPositions="0.5" orientation="HORIZONTAL"> <!-- ban đầu splitPane_chilren chiếm hết -->
+
+                    <!-- LEFT PANEL (CHAT UI) -->
+                    <BorderPane fx:id="leftPane">
+                        <top>
+                            <HBox spacing="10" style="-fx-background-color: #ececec; -fx-padding: 10;">
+                                <Button fx:id="toggleMenuButton" style="-fx-font-size:18px; -fx-background-color: transparent;" text="☰" />
+                                <Label fx:id="welcomeLabel" style="-fx-font-size:16px; -fx-font-weight:bold;" text="Welcome, User" />
+                            </HBox>
+                        </top>
+
+                        <left>
+                            <StackPane fx:id="leftBox" prefWidth="250">
+                                <StackPane fx:id="menuContainer" prefWidth="250">
+                                    <VBox fx:id="menuVBox" prefWidth="250" spacing="10" style="-fx-background-color: #f0f0f0;">
+                                        <padding><Insets bottom="10" left="10" right="10" top="10" /></padding>
+
+                                        <TextField fx:id="searchField" promptText="Tìm hộp thoại..." />
+
+                                        <ScrollPane fitToWidth="true" prefHeight="450">
+                                            <VBox fx:id="conversationListVBox" spacing="5">
+                                                <padding><Insets bottom="5" left="5" right="5" top="5" /></padding>
+                                            </VBox>
+                                        </ScrollPane>
+
+                                        <Button fx:id="newChatButton" onAction="#handleNewConversation" text="Tạo Chat Mới" />
+                                    </VBox>
+                                </StackPane>
+                            </StackPane>
+                        </left>
+
+                        <center>
+                            <StackPane fx:id="centerContainer">
+                                <AnchorPane fx:id="centerAnchor">
+                                    <VBox fx:id="centerVBox" prefWidth="650" spacing="10" AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.topAnchor="0">
+                                        <padding><Insets bottom="10" left="10" right="10" top="10" /></padding>
+
+                                        <ScrollPane fx:id="chatScrollPane"
+                                                    fitToWidth="true" fitToHeight="true"
+                                                    AnchorPane.topAnchor="0.0"
+                                                    AnchorPane.leftAnchor="0.0"
+                                                    AnchorPane.rightAnchor="0.0"
+                                                    AnchorPane.bottomAnchor="0.0">
+                                            <VBox fx:id="chatVBox" spacing="5">
+                                                <padding><Insets bottom="5" left="5" right="5" top="5" /></padding>
+                                            </VBox>
+                                        </ScrollPane>
+                                    </VBox>
+                                </AnchorPane>
+                            </StackPane>
+                        </center>
+                        <!-- ✔️ HBox input bar đưa ra đây -->
+                        <bottom>
+                            <HBox spacing="10" style="-fx-padding: 10;">
+                                <TextField fx:id="messageField" promptText="Nhập tin nhắn..." HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="sendButton" onAction="#handleSendMessage" text="Gửi"/>
+                            </HBox>
+                        </bottom>
+                    </BorderPane>
+
+
+                    <WebView fx:id="webView"/>
+                </SplitPane>
 
                 <!-- Phần xem mã nguồn HTML (ẩn ban đầu bằng kích thước) -->
                 <AnchorPane fx:id="htmlInspector" style="-fx-background-color: white; -fx-border-color: #ccc; -fx-border-width: 1;">

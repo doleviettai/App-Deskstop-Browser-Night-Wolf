@@ -13,6 +13,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -26,6 +28,8 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebHistory;
 import javafx.scene.web.WebView;
@@ -163,6 +167,54 @@ public class NewTabController implements Initializable {
     private boolean manualLoad = false;
 
     private boolean atHome = true; // trạng thái: true = đang ở "trang chủ"
+
+//  Tích hợp chatBot
+    @FXML private Label welcomeLabel;
+
+    // Left menu
+    @FXML private TextField searchField;
+    @FXML private VBox conversationListVBox;
+    @FXML private Button newChatButton;
+
+    // Chat center
+    @FXML private ScrollPane chatScrollPane;
+    @FXML private VBox chatVBox;
+    @FXML private TextField messageField;
+    @FXML private Button sendButton;
+
+    @FXML private StackPane menuContainer;
+    @FXML private StackPane centerContainer;
+    @FXML private AnchorPane centerAnchor;
+    @FXML private VBox menuVBox;
+    @FXML private VBox centerVBox;
+    @FXML private Button toggleMenuButton;
+    @FXML private StackPane leftBox;
+
+    private boolean menuVisible = true;
+
+//    @FXML
+//    private SplitPane splitPane; // SplitPane chính (chứa splitPane_chilren và htmlInspector)
+    @FXML
+    private BorderPane leftPane;
+    @FXML
+    private SplitPane splitPane_chilren; // SplitPane bên trong (chứa leftPane và WebView)
+    @FXML
+    private Button toggleInspectButton; // Nút ☰
+
+    private boolean isLeftPaneVisible = true; // Mặc định hiển thị
+
+//    @FXML
+//    private WebView webView;
+
+    // --- Socket dài hạn từ LoginController ---
+    private Socket socket;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
+
+
+
+//    private int userId;
+    private int currentConversationId = -1;
 
     public void receiverNickName(String id,String username, String fullname) {
         this.currentId = id;
@@ -1891,6 +1943,914 @@ public class NewTabController implements Initializable {
         });
     }
 
+    //=======================Tích hợp chatBot======================================
+
+    /** Thiết lập socket dài hạn từ LoginController */
+    public void setSocket(Socket socket, ObjectOutputStream out, ObjectInputStream in) {
+        this.socket = socket;
+        this.out = out;
+        this.in = in;
+
+        // Nếu userId đã có trước đó thì load conversations
+        if (currentId != null) loadConversations();
+    }
+    /** Setter nhận userId từ LoginController */
+    public void setUserId() {
+        if (welcomeLabel != null) {
+            welcomeLabel.setText("Welcome, User :" + currentFullname);
+        }
+        if (socket != null && out != null && in != null) {
+            loadConversations();
+        }
+    }
+
+    /** Tạo animation trượt menu */
+    private void setupMenuSlide() {
+        double menuWidth = menuVBox.getPrefWidth();
+
+        // Ẩn menu sẵn
+        menuContainer.setTranslateX(-menuWidth);
+        menuContainer.setVisible(false);
+        menuVisible = false;
+
+        // Center chiếm toàn bộ left
+        BorderPane parent = (BorderPane) centerContainer.getParent(); // dùng parent trực tiếp, tránh getScene()
+        parent.setLeft(null);
+        centerAnchor.setTranslateX(0);
+
+        toggleMenuButton.setOnAction(e -> toggleMenu_1());
+    }
+
+    private void toggleMenu_1() {
+        double menuWidth = menuVBox.getWidth();
+        double duration = 250;
+
+        TranslateTransition menuSlide = new TranslateTransition(Duration.millis(duration), menuContainer);
+        TranslateTransition centerSlide = new TranslateTransition(Duration.millis(duration), centerAnchor);
+
+        BorderPane parent = (BorderPane) toggleMenuButton.getScene().getRoot();
+
+        if (!menuVisible) {
+            // HIỆN MENU: trượt menu từ trái vào
+            toggleMenuButton.setText("⮞");
+            parent.setLeft(leftBox);
+            menuContainer.setVisible(true);
+
+            menuSlide.setFromX(-menuWidth);
+            menuSlide.setToX(0);
+
+            // Center thụt nhẹ theo menu (phần phải cố định)
+            centerSlide.setFromX(0);
+            centerSlide.setToX(menuWidth);
+
+            menuSlide.setOnFinished(e -> menuContainer.setTranslateX(0));
+            centerSlide.setOnFinished(e -> centerAnchor.setTranslateX(0));
+
+            menuVisible = true;
+
+        } else {
+            // ẨN MENU: trượt menu ra trái
+            toggleMenuButton.setText("☰");
+            menuSlide.setFromX(0);
+            menuSlide.setToX(-menuWidth);
+
+            // Center thụt lại sang trái
+            centerSlide.setFromX(0);
+            centerSlide.setToX(0); // hoặc -menuWidth nếu muốn center trượt nhẹ
+
+            menuSlide.setOnFinished(e -> {
+                menuContainer.setVisible(false);
+                parent.setLeft(null);
+                menuContainer.setTranslateX(0);
+            });
+
+            centerSlide.setOnFinished(e -> centerAnchor.setTranslateX(0));
+
+            menuVisible = false;
+        }
+
+        // Chạy animation song song
+        menuSlide.play();
+        centerSlide.play();
+    }
+
+    /**
+     * ✅ Hàm mở / đóng giao diện chat (leftPane)
+     */
+    private void toggleInspector() {
+
+        SplitPane.Divider divider = splitPane_chilren.getDividers().get(0);
+
+        if (!isLeftPaneVisible) {
+            // ✅ --- HIỆN LEFT PANE (CHAT) ---
+            // leftPane từ 0 → 50%
+            Timeline openAnim = new Timeline(
+                    new KeyFrame(Duration.ZERO,
+                            new KeyValue(divider.positionProperty(), divider.getPosition())),
+                    new KeyFrame(Duration.millis(350),
+                            new KeyValue(divider.positionProperty(), 0.35))
+            );
+            openAnim.play();
+
+            toggleInspectButton.setText("⮜ Inspector");
+            isLeftPaneVisible = true;
+        }
+        else {
+            // ✅ --- ẨN LEFT PANE (CHAT) ---
+            // leftPane từ 50% → 0%
+            Timeline closeAnim = new Timeline(
+                    new KeyFrame(Duration.ZERO,
+                            new KeyValue(divider.positionProperty(), divider.getPosition())),
+                    new KeyFrame(Duration.millis(350),
+                            new KeyValue(divider.positionProperty(), 0)) // Inspector full
+            );
+            closeAnim.play();
+
+            toggleInspectButton.setText("⮞ Inspector");
+            isLeftPaneVisible = false;
+        }
+    }
+
+    /** Load danh sách conversation */
+    private void loadConversations() {
+        if (conversationListVBox == null || socket == null || socket.isClosed()) return;
+        conversationListVBox.getChildren().clear();
+
+        Message request = new Message();
+        request.put("action", "list_conversations");
+        int id = Integer.parseInt(currentId); // đảm bảo là int
+        request.put("user_id", id);
+
+        new Thread(() -> {
+            try {
+                Message response = sendRequest(request);
+                Platform.runLater(() -> {
+                    if ("ok".equals(response.getOrDefault("status", ""))) {
+                        List<Conversation> conversations =
+                                (List<Conversation>) response.getOrDefault("conversations", List.of());
+                        for (Conversation conv : conversations) {
+                            // === Container chứa 2 nút ===
+                            HBox container = new HBox(5);
+                            container.setAlignment(Pos.CENTER_LEFT);
+
+                            // === Nút mở hội thoại ===
+                            Button openBtn = new Button(conv.getTitle());
+                            openBtn.setMaxWidth(Double.MAX_VALUE);
+                            HBox.setHgrow(openBtn, Priority.ALWAYS);
+                            openBtn.setStyle("""
+                                -fx-background-color: #f2f2f2;
+                                -fx-border-color: #cccccc;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """);
+
+                            // Hiệu ứng hover cho openBtn
+                            openBtn.setOnMouseEntered(e -> openBtn.setStyle("""
+                                -fx-background-color: #E0FFE0;
+                                -fx-border-color: #8bc34a;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+                            openBtn.setOnMouseExited(e -> openBtn.setStyle("""
+                                -fx-background-color: #f2f2f2;
+                                -fx-border-color: #cccccc;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+
+                            openBtn.setOnAction(e -> openConversation(conv.getId()));
+
+                            // === Nút xóa hội thoại ===
+                            Button deleteBtn = new Button("❌");
+                            deleteBtn.setStyle("""
+                                -fx-background-color: transparent;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """);
+
+                            // Hiệu ứng hover cho deleteBtn
+                            deleteBtn.setOnMouseEntered(e -> deleteBtn.setStyle("""
+                                -fx-background-color: #FFCCCC;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                                -fx-background-radius: 5px;
+                            """));
+                            deleteBtn.setOnMouseExited(e -> deleteBtn.setStyle("""
+                                -fx-background-color: transparent;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+
+                            deleteBtn.setOnAction(e -> deleteItemConversation(conv.getId(), container));
+
+                            // Thêm vào HBox
+                            container.getChildren().addAll(openBtn, deleteBtn);
+
+                            // Thêm container vào danh sách
+                            conversationListVBox.getChildren().add(container);
+                        }
+                    } else {
+                        showAlert("Error", (String) response.getOrDefault("message", "Không thể tải conversation"));
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                showAlert("Error", "Lỗi load conversation: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /** Gửi yêu cầu tìm kiếm conversation tới server */
+    private void performSearchConversation(String keyword) {
+        if (socket == null || socket.isClosed()) return;
+
+        Message request = new Message();
+        request.put("action", "search_conversation");
+        int id = Integer.parseInt(currentId); // đảm bảo là int
+        request.put("user_id", id);
+        request.put("keyword", keyword);
+
+        new Thread(() -> {
+            try {
+                Message response = sendRequest(request);
+                Platform.runLater(() -> {
+                    if ("ok".equals(response.getOrDefault("status", ""))) {
+                        // Xóa danh sách cũ
+                        conversationListVBox.getChildren().clear();
+
+                        List<Conversation> conversations =
+                                (List<Conversation>) response.getOrDefault("conversations", List.of());
+
+                        for (Conversation conv : conversations) {
+                            // === Container chứa 2 nút ===
+                            HBox container = new HBox(5);
+                            container.setAlignment(Pos.CENTER_LEFT);
+
+                            // === Nút mở hội thoại ===
+                            Button openBtn = new Button(conv.getTitle());
+                            openBtn.setMaxWidth(Double.MAX_VALUE);
+                            HBox.setHgrow(openBtn, Priority.ALWAYS);
+                            openBtn.setStyle("""
+                                -fx-background-color: #f2f2f2;
+                                -fx-border-color: #cccccc;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """);
+
+                            // Hiệu ứng hover cho openBtn
+                            openBtn.setOnMouseEntered(e -> openBtn.setStyle("""
+                                -fx-background-color: #E0FFE0;
+                                -fx-border-color: #8bc34a;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+                            openBtn.setOnMouseExited(e -> openBtn.setStyle("""
+                                -fx-background-color: #f2f2f2;
+                                -fx-border-color: #cccccc;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+
+                            openBtn.setOnAction(e -> openConversation(conv.getId()));
+
+                            // === Nút xóa hội thoại ===
+                            Button deleteBtn = new Button("❌");
+                            deleteBtn.setStyle("""
+                                -fx-background-color: transparent;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """);
+
+                            // Hiệu ứng hover cho deleteBtn
+                            deleteBtn.setOnMouseEntered(e -> deleteBtn.setStyle("""
+                                -fx-background-color: #FFCCCC;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                                -fx-background-radius: 5px;
+                            """));
+                            deleteBtn.setOnMouseExited(e -> deleteBtn.setStyle("""
+                                -fx-background-color: transparent;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+
+                            deleteBtn.setOnAction(e -> deleteItemConversation(conv.getId(), container));
+
+                            // Thêm vào HBox
+                            container.getChildren().addAll(openBtn, deleteBtn);
+
+                            // Thêm container vào danh sách
+                            conversationListVBox.getChildren().add(container);
+                        }
+                    } else {
+                        showAlert("Error", (String) response.getOrDefault("message", "Không tìm được conversation"));
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                showAlert("Error", "Lỗi tìm kiếm conversation: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /** Xóa 1 hội thoại */
+    private void deleteItemConversation(int conversationId, HBox container) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Xóa hội thoại");
+        confirm.setHeaderText("Bạn có chắc muốn xóa hội thoại này?");
+        confirm.setContentText("Thao tác này không thể hoàn tác!");
+
+        confirm.showAndWait().ifPresent(result -> {
+            if (result == ButtonType.OK) {
+                Message request = new Message();
+                request.put("action", "delete_item_conversation");
+                request.put("conversationId", conversationId);
+
+                new Thread(() -> {
+                    try {
+                        Message response = sendRequest(request);
+                        Platform.runLater(() -> {
+                            if ("ok".equals(response.getOrDefault("status", ""))) {
+                                conversationListVBox.getChildren().remove(container);
+                                if (currentConversationId == conversationId) {
+                                    chatVBox.getChildren().clear();
+                                    currentConversationId = -1;
+                                }
+                                showInfo("Thành công", (String) response.get("message"));
+                            } else {
+                                showAlert("Lỗi", (String) response.getOrDefault("message", "Không thể xóa hội thoại"));
+                            }
+                        });
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        showAlert("Lỗi", "Không thể gửi yêu cầu xóa: " + e.getMessage());
+                    }
+                }).start();
+            }
+        });
+    }
+
+    /** Mở conversation và hiển thị tất cả tin nhắn (user + AI) */
+    private void openConversation(int conversationId) {
+        currentConversationId = conversationId;
+        if (chatVBox != null) chatVBox.getChildren().clear();
+
+        Message request = new Message();
+        request.put("action", "get_history");
+        request.put("conversationId", conversationId);
+
+        new Thread(() -> {
+            try {
+                Message response = sendRequest(request);
+                Platform.runLater(() -> {
+                    if ("ok".equals(response.getOrDefault("status", ""))) {
+                        List<Messages> messages =
+                                (List<Messages>) response.getOrDefault("messages", List.of());
+
+                        for (Messages msg : messages) {
+                            boolean isUser = !"AI".equalsIgnoreCase(msg.getSender());
+                            addChatBubble(msg, isUser);
+                        }
+
+                        if (chatScrollPane != null) chatScrollPane.setVvalue(1.0);
+                    } else {
+                        showAlert("Error", (String) response.getOrDefault("message", "Không lấy được lịch sử chat"));
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                showAlert("Error", "Lỗi mở conversation: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /** Gửi tin nhắn và nhận AI response, hiển thị cả hai */
+    @FXML
+    private void handleSendMessage() {
+        if (messageField == null || socket == null || socket.isClosed()) return;
+
+        String text = messageField.getText().trim();
+        if (text.isEmpty() || currentConversationId == -1) return;
+
+        Message request = new Message();
+        request.put("action", "send_message");
+        request.put("conversationId", currentConversationId);
+        request.put("content", text);
+
+        // --- Tạo chat bubble cho user ngay ---
+        Messages userMsg = new Messages(0, currentConversationId, "user", text);
+        addChatBubble(userMsg, true);
+
+        // --- Tạo chat bubble "AI đang suy nghĩ" ---
+//        Messages aiPendingMsg = new Messages(0, currentConversationId, "ai", "…"); // dấu 3 chấm
+//        HBox aiContainer = addChatBubble(aiPendingMsg, false);
+        // --- Tạo chat bubble AI với GIF "đang suy nghĩ" ---
+        Messages aiPendingMsg = new Messages(0, currentConversationId, "ai", "");
+        HBox aiContainer = addChatBubbleWithGif(aiPendingMsg, false, "/Image/Running dog.gif");
+
+        messageField.clear();
+        if (chatScrollPane != null) chatScrollPane.setVvalue(1.0);
+
+        new Thread(() -> {
+            try {
+                Message response = sendRequest(request);
+                Platform.runLater(() -> {
+                    if ("ok".equals(response.getOrDefault("status", ""))) {
+                        Messages aiMsg = (Messages) response.get("aiMessage");
+                        if (aiMsg != null) {
+                            VBox containerVBox = (VBox) aiContainer.getChildren().get(0);
+                            containerVBox.getChildren().clear(); // Xóa GIF
+
+                            // --- Tạo TextArea với style giống addChatBubble ---
+                            TextArea textArea = new TextArea(aiMsg.getContent());
+                            textArea.setWrapText(true);
+                            textArea.setEditable(false);
+                            textArea.setFocusTraversable(false);
+                            textArea.setMouseTransparent(false);
+                            textArea.setStyle(
+                                    "-fx-background-color: skyblue;" +
+                                            "-fx-background-radius: 12;" +
+                                            "-fx-font-size: 14px;" +
+                                            "-fx-text-fill: black;" +
+                                            "-fx-border-color: transparent;" +
+                                            "-fx-focus-color: transparent;" +
+                                            "-fx-faint-focus-color: transparent;"
+                            );
+                            textArea.setCursor(Cursor.TEXT);
+                            textArea.setMaxWidth(400);
+
+                            // --- Chiều cao tự động ---
+                            Text tempText = new Text(aiMsg.getContent());
+                            tempText.setFont(Font.font(14));
+                            tempText.setWrappingWidth(380);
+                            double height = tempText.getLayoutBounds().getHeight() + 20;
+                            textArea.setPrefHeight(height);
+
+                            containerVBox.getChildren().add(textArea);
+
+                            // --- Thêm lại feedback emojis như ban đầu ---
+                            HBox reactionHBox = new HBox(5);
+                            reactionHBox.setAlignment(Pos.CENTER_LEFT);
+                            String[] emojis = {"👍", "❤️", "😆", "😮", "😢", "😡"};
+                            String[] feedbackKeys = {"like","love","haha","wow","sad","angry"};
+
+                            for (int i = 0; i < emojis.length; i++) {
+                                String key = feedbackKeys[i];
+                                Button btn = new Button(emojis[i]);
+                                btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;");
+
+                                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: greenyellow; -fx-font-size: 16px;"));
+                                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;"));
+
+                                btn.setOnAction(e -> {
+                                    Node existingInput = null;
+                                    for (Node node : containerVBox.getChildren()) {
+                                        if ("feedbackInput".equals(node.getId())) {
+                                            existingInput = node;
+                                            break;
+                                        }
+                                    }
+
+                                    if (existingInput != null) {
+                                        containerVBox.getChildren().remove(existingInput);
+                                    } else {
+                                        HBox feedbackInput = showFeedbackInput(aiMsg.getId(), key);
+                                        feedbackInput.setId("feedbackInput");
+                                        containerVBox.getChildren().add(feedbackInput);
+                                    }
+                                });
+
+                                reactionHBox.getChildren().add(btn);
+                            }
+
+                            containerVBox.getChildren().add(reactionHBox);
+                        }
+
+                    } else {
+                        showAlert("Error", (String) response.getOrDefault("message", "Không gửi được tin nhắn"));
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                Platform.runLater(() -> showAlert("Error", "Lỗi gửi tin nhắn: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    /**
+     * Thêm chat bubble, trả về outerContainer HBox để sau này có thể cập nhật nội dung
+     */
+    private HBox addChatBubble(Messages msg, boolean isUser) {
+        TextArea textArea = new TextArea(msg.getContent());
+        textArea.setWrapText(true);
+        textArea.setEditable(false);
+        textArea.setFocusTraversable(false);
+        textArea.setMouseTransparent(false);
+        textArea.setStyle(
+                "-fx-background-color: " + (isUser ? "yellowgreen" : "skyblue") + ";" +
+                        "-fx-background-radius: 12;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-text-fill: black;" +
+                        "-fx-border-color: transparent;" +
+                        "-fx-focus-color: transparent;" +
+                        "-fx-faint-focus-color: transparent;"
+        );
+        textArea.setCursor(Cursor.TEXT);
+
+        textArea.setMaxWidth(400);
+        Text tempText = new Text(msg.getContent());
+        tempText.setFont(Font.font(14));
+        tempText.setWrappingWidth(380);
+        double height = tempText.getLayoutBounds().getHeight() + 20;
+        textArea.setPrefHeight(height);
+
+        VBox containerVBox = new VBox();
+        containerVBox.setSpacing(5);
+        containerVBox.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+        containerVBox.getChildren().add(textArea);
+
+        // --- Chỉ AI mới có feedback ---
+        if (!isUser) {
+            HBox reactionHBox = new HBox(5);
+            reactionHBox.setAlignment(Pos.CENTER_LEFT);
+
+            String[] emojis = {"👍", "❤️", "😆", "😮", "😢", "😡"};
+            String[] feedbackKeys = {"like","love","haha","wow","sad","angry"};
+
+            for (int i = 0; i < emojis.length; i++) {
+                String key = feedbackKeys[i];
+                Button btn = new Button(emojis[i]);
+                btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;");
+
+                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: greenyellow; -fx-font-size: 16px;"));
+                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;"));
+
+                btn.setOnAction(e -> {
+                    Node existingInput = null;
+                    for (Node node : containerVBox.getChildren()) {
+                        if ("feedbackInput".equals(node.getId())) {
+                            existingInput = node;
+                            break;
+                        }
+                    }
+
+                    if (existingInput != null) {
+                        containerVBox.getChildren().remove(existingInput);
+                    } else {
+                        HBox feedbackInput = showFeedbackInput(msg.getId(), key);
+                        feedbackInput.setId("feedbackInput");
+                        containerVBox.getChildren().add(feedbackInput);
+                    }
+                });
+
+                reactionHBox.getChildren().add(btn);
+            }
+
+            containerVBox.getChildren().add(reactionHBox);
+        }
+
+        HBox outerContainer = new HBox(containerVBox);
+        outerContainer.setPadding(new Insets(5,10,5,10));
+        outerContainer.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+
+        chatVBox.getChildren().add(outerContainer);
+        if (chatScrollPane != null) chatScrollPane.setVvalue(1.0);
+
+        return outerContainer;
+    }
+
+    private HBox addChatBubbleWithGif(Messages msg, boolean isUser, String gifPath) {
+        VBox containerVBox = new VBox();
+        containerVBox.setSpacing(5);
+        containerVBox.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+
+        StackPane contentContainer = new StackPane();
+        contentContainer.setPadding(new Insets(10));
+        contentContainer.setStyle(
+                "-fx-background-color: " + (isUser ? "yellowgreen" : "skyblue") + ";" +
+                        "-fx-background-radius: 12;" +
+                        "-fx-border-color: transparent;"
+        );
+
+        Node contentNode;
+
+        if (isUser || (msg.getContent() != null && !msg.getContent().isEmpty())) {
+            // --- User hoặc AI đã có nội dung ---
+            TextArea textArea = new TextArea(msg.getContent());
+            textArea.setWrapText(true);
+            textArea.setEditable(false);
+            textArea.setFocusTraversable(false);
+            textArea.setMouseTransparent(false);
+            textArea.setStyle(
+                    "-fx-background-color: transparent;" + // background đã có trong contentContainer
+                            "-fx-font-size: 14px;" +
+                            "-fx-text-fill: black;" +
+                            "-fx-border-color: transparent;"
+            );
+            textArea.setCursor(Cursor.TEXT);
+            textArea.setMaxWidth(400);
+
+            // Chiều cao tự động
+            Text tempText = new Text(msg.getContent());
+            tempText.setFont(Font.font(14));
+            tempText.setWrappingWidth(380);
+            double height = tempText.getLayoutBounds().getHeight() + 20;
+            textArea.setPrefHeight(height);
+
+            contentNode = textArea;
+
+        } else {
+            // --- AI đang suy nghĩ: GIF ---
+            Image gif = new Image(getClass().getResourceAsStream(gifPath));
+            ImageView imageView = new ImageView(gif);
+            imageView.setFitWidth(80);
+            imageView.setPreserveRatio(true);
+            contentNode = imageView;
+        }
+
+        contentContainer.getChildren().add(contentNode);
+        containerVBox.getChildren().add(contentContainer);
+
+        // --- Chỉ AI mới có feedback ---
+        if (!isUser) {
+            HBox reactionHBox = new HBox(5);
+            reactionHBox.setAlignment(Pos.CENTER_LEFT);
+
+            String[] emojis = {"👍", "❤️", "😆", "😮", "😢", "😡"};
+            String[] feedbackKeys = {"like","love","haha","wow","sad","angry"};
+
+            for (int i = 0; i < emojis.length; i++) {
+                String key = feedbackKeys[i];
+                Button btn = new Button(emojis[i]);
+                btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;");
+
+                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: greenyellow; -fx-font-size: 16px;"));
+                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;"));
+
+                btn.setOnAction(e -> {
+                    Node existingInput = null;
+                    for (Node node : containerVBox.getChildren()) {
+                        if ("feedbackInput".equals(node.getId())) {
+                            existingInput = node;
+                            break;
+                        }
+                    }
+
+                    if (existingInput != null) {
+                        containerVBox.getChildren().remove(existingInput);
+                    } else {
+                        HBox feedbackInput = showFeedbackInput(msg.getId(), key);
+                        feedbackInput.setId("feedbackInput");
+                        containerVBox.getChildren().add(feedbackInput);
+                    }
+                });
+
+                reactionHBox.getChildren().add(btn);
+            }
+
+            containerVBox.getChildren().add(reactionHBox);
+        }
+
+        HBox outerContainer = new HBox(containerVBox);
+        outerContainer.setPadding(new Insets(5,10,5,10));
+        outerContainer.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+
+        chatVBox.getChildren().add(outerContainer);
+        if (chatScrollPane != null) chatScrollPane.setVvalue(1.0);
+
+        // Trả về outerContainer và contentContainer để cập nhật sau này
+        outerContainer.setUserData(contentContainer);
+        return outerContainer;
+    }
+
+    private HBox showFeedbackInput(int messageId, String feedbackType) {
+        HBox inputRow = new HBox(5);
+        inputRow.setAlignment(Pos.CENTER_LEFT);
+
+        TextField commentField = new TextField();
+        commentField.setPromptText("Ghi chú nhanh...");
+        commentField.setPrefWidth(150);
+
+        Button sendBtn = new Button("Gửi");
+
+        sendBtn.setOnAction(ev -> {
+            String comment = commentField.getText().trim();
+            if (comment.isEmpty()) {
+                showAlert("Lỗi", "Bạn chưa nhập phản hồi!");
+                return;
+            }
+
+            Message request = new Message();
+            request.put("action", "add_or_update_feedback");
+            request.put("messageId", messageId);
+            int id = Integer.parseInt(currentId); // đảm bảo là int
+            request.put("user_id", id);
+            request.put("feedback", feedbackType);
+            request.put("comment", comment);
+
+            new Thread(() -> {
+                try {
+                    Message response = sendRequest(request);
+                    Platform.runLater(() -> {
+                        if ("ok".equals(response.getOrDefault("status", ""))) {
+                            showInfo("Thành công", "Đã gửi phản hồi!");
+                            // remove inputRow khỏi parent
+                            ((VBox) inputRow.getParent()).getChildren().remove(inputRow);
+                        } else {
+                            showAlert("Lỗi", (String) response.getOrDefault("message", "Không gửi được phản hồi"));
+                        }
+                    });
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }).start();
+        });
+
+        inputRow.getChildren().addAll(commentField, sendBtn);
+        return inputRow; // chỉ trả về HBox
+    }
+
+    private void deleteFeedback(int feedbackId) {
+        Message request = new Message();
+        request.put("action", "delete_message_feedback");
+        request.put("feedback_id", feedbackId);
+
+        new Thread(() -> {
+            try {
+                Message response = sendRequest(request);
+                Platform.runLater(() -> {
+                    if ("ok".equals(response.get("status"))) {
+                        showInfo("Đã xoá", "Feedback đã được xoá!");
+                    } else {
+                        showAlert("Lỗi", (String) response.get("message"));
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    /** Tạo conversation mới và mở ngay */
+    @FXML
+    private void handleNewConversation() {
+//        if (socket == null || socket.isClosed()) return;
+
+        // --- Hiển thị hộp thoại nhập tên ---
+        TextInputDialog dialog = new TextInputDialog("New Chat");
+        dialog.setTitle("Tạo hội thoại mới");
+        dialog.setHeaderText("Đặt tên cho cuộc trò chuyện");
+        dialog.setContentText("Nhập tên:");
+
+        dialog.showAndWait().ifPresent(title -> {
+            if (title.trim().isEmpty()) {
+                showAlert("Lỗi", "Tên hội thoại không được để trống!");
+                return;
+            }
+
+            Message request = new Message();
+            request.put("action", "new_conversation");
+            int id = Integer.parseInt(currentId); // đảm bảo là int
+            request.put("user_id", id);
+            request.put("title", title.trim());
+
+            new Thread(() -> {
+                try {
+                    Message response = sendRequest(request);
+                    Platform.runLater(() -> {
+                        if ("ok".equals(response.getOrDefault("status", ""))) {
+                            Conversation conv = (Conversation) response.getOrDefault("conversation", null);
+                            if (conv != null) {
+                                // === Container chứa 2 nút ===
+                                HBox container = new HBox(5);
+                                container.setAlignment(Pos.CENTER_LEFT);
+
+                                // === Nút mở hội thoại ===
+                                Button openBtn = new Button(conv.getTitle());
+                                openBtn.setMaxWidth(Double.MAX_VALUE);
+                                HBox.setHgrow(openBtn, Priority.ALWAYS);
+                                openBtn.setStyle("""
+                                -fx-background-color: #f2f2f2;
+                                -fx-border-color: #cccccc;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """);
+
+                                // Hiệu ứng hover cho openBtn
+                                openBtn.setOnMouseEntered(e -> openBtn.setStyle("""
+                                -fx-background-color: #E0FFE0;
+                                -fx-border-color: #8bc34a;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+                                openBtn.setOnMouseExited(e -> openBtn.setStyle("""
+                                -fx-background-color: #f2f2f2;
+                                -fx-border-color: #cccccc;
+                                -fx-border-radius: 5px;
+                                -fx-background-radius: 5px;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+
+                                openBtn.setOnAction(e -> openConversation(conv.getId()));
+
+                                // === Nút xóa hội thoại ===
+                                Button deleteBtn = new Button("❌");
+                                deleteBtn.setStyle("""
+                                -fx-background-color: transparent;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """);
+
+                                // Hiệu ứng hover cho deleteBtn
+                                deleteBtn.setOnMouseEntered(e -> deleteBtn.setStyle("""
+                                -fx-background-color: #FFCCCC;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                                -fx-background-radius: 5px;
+                            """));
+                                deleteBtn.setOnMouseExited(e -> deleteBtn.setStyle("""
+                                -fx-background-color: transparent;
+                                -fx-text-fill: red;
+                                -fx-font-size: 14px;
+                                -fx-cursor: hand;
+                            """));
+
+                                deleteBtn.setOnAction(e -> deleteItemConversation(conv.getId(), container));
+
+                                // Thêm vào HBox
+                                container.getChildren().addAll(openBtn, deleteBtn);
+
+                                // Thêm container vào danh sách
+                                conversationListVBox.getChildren().add(container);
+
+                                // Mở ngay conversation mới
+                                openConversation(conv.getId());
+                            }
+                        } else {
+                            showAlert("Error", (String) response.getOrDefault("message", "Không tạo được conversation"));
+                        }
+                    });
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    showAlert("Error", "Lỗi tạo conversation: " + e.getMessage());
+                }
+            }).start();
+        });
+    }
+
+    /** Hiển thị alert */
+    private void showAlert(String title, String content) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(title);
+            alert.setContentText(content);
+            alert.showAndWait();
+        });
+    }
+
+    private void showInfo(String title, String content) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(title);
+            alert.setContentText(content);
+            alert.showAndWait();
+        });
+    }
+
+    /** Đóng socket khi app đóng */
+    public synchronized void closeConnection() {
+        try {
+            if (in != null) in.close();
+            if (out != null) out.close();
+            if (socket != null && !socket.isClosed()) socket.close();
+        } catch (IOException ignored) {}
+    }
+
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
         engine = webView.getEngine();
@@ -1982,5 +2942,38 @@ public class NewTabController implements Initializable {
 
         // Ban đầu đặt slideMenu ngoài màn hình phải
         slideMenu.setTranslateX(getScreenWidth());
+//====================================================================================
+        // Lắng nghe khi text thay đổi để tìm kiếm
+        setUserId();
+        // Tạo PauseTransition để debounce (200ms)
+        PauseTransition pause = new PauseTransition(Duration.millis(250));
+
+        searchField.textProperty().addListener((obs, oldText, newText) -> {
+            // Mỗi lần text thay đổi, reset timer
+            pause.setOnFinished(event -> performSearchConversation(newText.trim()));
+            pause.playFromStart();
+        });
+
+        // slide menu left
+        // Delay setup để Scene đã sẵn sàng
+        Platform.runLater(this::setupMenuSlide);
+
+        Platform.runLater(() -> {
+            leftPane.setMinWidth(0);
+            leftPane.setPrefWidth(0);
+            leftPane.setMaxWidth(Double.MAX_VALUE);
+
+            // Ẩn hoàn toàn vùng inspector
+            splitPane.setDividerPositions(1.0);
+
+            // Cho WebView chiếm toàn bộ
+            splitPane_chilren.setDividerPositions(0);
+        });
+
+
+        // Nếu bạn có nút toggleInspectButton để chuyển đổi hiển thị
+        if (toggleInspectButton != null) {
+            toggleInspectButton.setOnAction(e -> toggleInspector());
+        }
     }
 }
