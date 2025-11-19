@@ -131,6 +131,8 @@ public class LoginController implements Initializable {
     private final AutoLoginService Als = AutoLoginService.getInstance();
 
     private static final String SERVER_HOST = "localhost";
+//    private static final String SERVER_HOST = "172.20.10.2";
+//    private static final String SERVER_HOST = "192.168.56.1";
     private static final int SERVER_PORT = 12345;
 
     // Socket dài hạn cho toàn bộ app

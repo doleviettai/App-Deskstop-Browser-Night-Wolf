@@ -1250,17 +1250,22 @@ public class NewTabController implements Initializable {
             String html = (String) engine.executeScript("document.documentElement.outerHTML");
             htmlCodeArea.replaceText(html);
 
-            // Áp dụng highlight
-            htmlCodeArea.setStyleSpans(0, computeHighlighting(html));
-
-            // Hiện inspector bằng hiệu ứng trượt
+            // Animation trượt trước
             Timeline slideUp = new Timeline(
-                    new KeyFrame(Duration.millis(0), new KeyValue(splitPane.getDividers().get(0).positionProperty(), 1.0)),
-                    new KeyFrame(Duration.millis(300), new KeyValue(splitPane.getDividers().get(0).positionProperty(), 0.7))
+                    new KeyFrame(Duration.millis(0),
+                            new KeyValue(splitPane.getDividers().get(0).positionProperty(), 1.0)),
+                    new KeyFrame(Duration.millis(300),
+                            new KeyValue(splitPane.getDividers().get(0).positionProperty(), 0.3)) // inspector cao
             );
             slideUp.play();
 
             inspectorVisible = true;
+
+            // Chạy highlight SAU animation (không chặn UI)
+            Platform.runLater(() -> {
+                htmlCodeArea.setStyleSpans(0, computeHighlighting(html));
+            });
+
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1380,8 +1385,11 @@ public class NewTabController implements Initializable {
 
     private void hideHtmlInspector() {
         Timeline slideDown = new Timeline(
-                new KeyFrame(Duration.millis(0), new KeyValue(splitPane.getDividers().get(0).positionProperty(), splitPane.getDividers().get(0).getPosition())),
-                new KeyFrame(Duration.millis(300), new KeyValue(splitPane.getDividers().get(0).positionProperty(), 1.0))
+                new KeyFrame(Duration.millis(0),
+                        new KeyValue(splitPane.getDividers().get(0).positionProperty(),
+                                splitPane.getDividers().get(0).getPosition())),
+                new KeyFrame(Duration.millis(300),
+                        new KeyValue(splitPane.getDividers().get(0).positionProperty(), 1.0)) // trả về 100%
         );
         slideDown.play();
 

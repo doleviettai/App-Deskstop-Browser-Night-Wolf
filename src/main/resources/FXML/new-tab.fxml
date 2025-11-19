@@ -136,17 +136,21 @@
                                                 <padding><Insets bottom="5" left="5" right="5" top="5" /></padding>
                                             </VBox>
                                         </ScrollPane>
+                                        <HBox spacing="10" style="-fx-padding: 10;">
+                                            <TextField fx:id="messageField" promptText="Nhập tin nhắn..." HBox.hgrow="ALWAYS"/>
+                                            <Button fx:id="sendButton" onAction="#handleSendMessage" text="Gửi"/>
+                                        </HBox>
                                     </VBox>
                                 </AnchorPane>
                             </StackPane>
                         </center>
                         <!-- ✔️ HBox input bar đưa ra đây -->
-                        <bottom>
-                            <HBox spacing="10" style="-fx-padding: 10;">
-                                <TextField fx:id="messageField" promptText="Nhập tin nhắn..." HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="sendButton" onAction="#handleSendMessage" text="Gửi"/>
-                            </HBox>
-                        </bottom>
+<!--                        <bottom>-->
+<!--                            <HBox spacing="10" style="-fx-padding: 10;">-->
+<!--                                <TextField fx:id="messageField" promptText="Nhập tin nhắn..." HBox.hgrow="ALWAYS"/>-->
+<!--                                <Button fx:id="sendButton" onAction="#handleSendMessage" text="Gửi"/>-->
+<!--                            </HBox>-->
+<!--                        </bottom>-->
                     </BorderPane>
 
 
