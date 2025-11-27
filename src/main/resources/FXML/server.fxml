@@ -1,22 +1,274 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.ScrollPane?>
-<?import javafx.scene.layout.AnchorPane?>
-<?import javafx.scene.layout.VBox?>
-<?import javafx.scene.text.Font?>
+<?import javafx.scene.chart.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.scene.layout.*?>
 
-<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="323.0" styleClass="to_top" stylesheets="@../CSS/dasboardMiniMark.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.server.ServerController">
-    <children>
-        <Label alignment="CENTER" prefHeight="56.0" prefWidth="323.0" text="Server" textFill="WHITE">
-            <font>
-                <Font size="34.0" />
-            </font>
-        </Label>
-        <ScrollPane layoutX="7.0" layoutY="63.0" prefHeight="318.0" prefWidth="310.0">
-            <content>
-                <VBox fx:id="Server_Vbox" prefHeight="315.0" prefWidth="302.0" />
-            </content>
-        </ScrollPane>
-    </children>
-</AnchorPane>
+<BorderPane prefHeight="707.0" prefWidth="814.0" stylesheets="@../CSS/server.css" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.server.ServerController">
+
+    <!-- ===================== HEADER ===================== -->
+    <top>
+        <VBox>
+            <!-- Header Bar -->
+            <HBox alignment="CENTER_LEFT" spacing="12" style="-fx-background-color:linear-gradient(to right , rgb(242,112,156),rgb(255,148,114));-fx-padding: 15;">
+
+                <StackPane fx:id="avatarContainer" prefHeight="38" prefWidth="38" styleClass="avatar-container">
+                    <ImageView fx:id="imgLogo" fitHeight="32" fitWidth="32" preserveRatio="true">
+                        <image>
+                            <Image url="@../Image/wolf.png" />
+                        </image>
+                    </ImageView>
+                </StackPane>
+
+                <Label style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: white;" text="Browser Server" />
+
+                <Region HBox.hgrow="ALWAYS" />
+
+                <Label fx:id="lblServerStatus" style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #ffffff;" text="● Stopped" />
+            </HBox>
+
+            <!-- Info Bar (đã làm rộng hơn) -->
+            <HBox alignment="CENTER_LEFT" spacing="40" style="-fx-background-color: white; -fx-padding: 14;                          -fx-border-color: #e0e0e0; -fx-border-width: 0 0 1 0;">
+
+                <VBox spacing="2">
+                    <Label style="-fx-text-fill: #7f8c8d; -fx-font-size: 11px;" text="Port" />
+                    <Label fx:id="lblPort" style="-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;" text="12345" />
+                </VBox>
+
+                <VBox spacing="2">
+                    <Label style="-fx-text-fill: #7f8c8d; -fx-font-size: 11px;" text="Clients" />
+                    <Label fx:id="lblClients" style="-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: #27ae60;" text="0" />
+                </VBox>
+
+                <VBox spacing="2">
+                    <Label style="-fx-text-fill: #7f8c8d; -fx-font-size: 11px;" text="Uptime" />
+                    <Label fx:id="lblUptime" style="-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: #3498db;" text="00:00:00" />
+                </VBox>
+
+                <Region HBox.hgrow="ALWAYS" />
+
+                <Button fx:id="btnRefresh" onAction="#handleRefreshServer" style="-fx-background-color: #3498db; -fx-text-fill: white;                                -fx-font-weight: bold; -fx-cursor: hand;" text="🔄" />
+            </HBox>
+
+            <!-- Buttons -->
+            <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 5px;">
+                <Button fx:id="btnClear" onAction="#handleClear" style="-fx-background-color: #95a5a6; -fx-text-fill: white;                            -fx-cursor: hand;" text="🗑 Clear" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Button fx:id="btnStart" onAction="#handleStartServer" style="-fx-background-color: #27ae60; -fx-text-fill: white;-fx-font-weight: bold; -fx-cursor: hand;" text="▶ Start Server" />
+                <Button fx:id="btnStop" disable="true" onAction="#handleStopServer" style="-fx-background-color: #e74c3c; -fx-text-fill: white;                            -fx-font-weight: bold; -fx-cursor: hand;" text="⛔ Stop" />
+
+            </HBox>
+        </VBox>
+    </top>
+
+
+    <!-- ===================== CENTER: CONTENT ===================== -->
+    <center>
+        <TabPane styleClass="server-tabpane" tabClosingPolicy="UNAVAILABLE">
+
+        <!-- TAB 1: Activity Logs -->
+            <Tab fx:id="tabActivityLogs" text="📋 Activity Logs">
+                <VBox spacing="10" style="-fx-padding: 15; -fx-background-color: black;">
+
+                    <ScrollPane fitToWidth="true" style="-fx-background-color: black;">
+                        <content>
+                            <VBox fx:id="Server_Vbox" spacing="4" style="-fx-padding: 8; -fx-background-color: black;                                      -fx-font-family: 'Consolas', 'Courier New', monospace;" />
+                        </content>
+                    </ScrollPane>
+
+                </VBox>
+            </Tab>
+
+            <Tab fx:id="tabUser" text="👤 User">
+                <BorderPane maxHeight="650" minHeight="462.0" prefHeight="462.0" prefWidth="814.0" style="-fx-padding: 15;">
+
+                    <!-- ========= TOP: TABLE USER (NHỎ + SCROLL) ========= -->
+                    <top>
+                        <VBox prefHeight="117.0" prefWidth="785.0" spacing="5" BorderPane.alignment="CENTER">
+                            <Label style="-fx-font-size: 16; -fx-font-weight: bold;" text="Users Table" />
+
+                            <!-- Table giữ nguyên WIDTH nhưng HEIGHT nhỏ lại -->
+                            <ScrollPane fitToWidth="true" maxHeight="200" prefHeight="180" style="-fx-background-color: transparent;">
+                                <content>
+                                    <TableView fx:id="tblUsers" prefWidth="600">
+                                        <columns>
+                                            <TableColumn fx:id="colUsername" prefWidth="150" text="Username" />
+                                            <TableColumn fx:id="colFirst" prefWidth="150" text="First Name" />
+                                            <TableColumn fx:id="colLast" prefWidth="150" text="Last Name" />
+                                            <TableColumn fx:id="colPhone" prefWidth="150" text="Phone Number" />
+                                            <!-- ===== NEW SESSION COLUMNS ===== -->
+                                            <TableColumn fx:id="colSession"   prefWidth="180" text="Session Token" />
+                                            <TableColumn fx:id="colCreated"   prefWidth="150" text="Created At" />
+                                            <TableColumn fx:id="colExpires"   prefWidth="150" text="Expires At" />
+                                        </columns>
+                                    </TableView>
+                                </content>
+                            </ScrollPane>
+                        </VBox>
+                    </top>
+
+                    <!-- ========= CENTER: LINE CHART (CHIẾM NHIỀU DIỆN TÍCH) ========= -->
+                    <center>
+                        <LineChart fx:id="lineChart" animated="true" legendVisible="false" maxHeight="Infinity" minHeight="350" prefHeight="400" title="User Accounts Created" BorderPane.alignment="CENTER">
+
+                            <xAxis>
+                                <CategoryAxis label="Date" />
+                            </xAxis>
+
+                            <yAxis>
+                                <NumberAxis label="Count" />
+                            </yAxis>
+                        </LineChart>
+                    </center>
+
+                    <!-- ========= RIGHT: IMAGE VIEW ========= -->
+                    <right>
+                        <VBox spacing="10" style="-fx-padding: 10;" BorderPane.alignment="TOP_CENTER">
+
+                            <Label style="-fx-font-size: 16; -fx-font-weight: bold;" text="Avatar User" />
+
+                            <ImageView fx:id="imgAvatar" fitHeight="180" fitWidth="180" preserveRatio="true" style="-fx-border-color: gray; -fx-border-width: 2;" />
+                        </VBox>
+                    </right>
+
+                </BorderPane>
+            </Tab>
+
+            <Tab fx:id="tabUrls" text="📎Url">
+                <BorderPane maxHeight="650" minHeight="462.0" prefHeight="462.0" prefWidth="814.0" style="-fx-padding: 15;">
+
+                    <!-- ========= LEFT: TABLE VIEW ========= -->
+                    <left>
+                        <TableView fx:id="tblUrls" prefWidth="420" BorderPane.alignment="CENTER">
+                            <columns>
+                                <TableColumn fx:id="colUrl"        prefWidth="200" text="URL" />
+                                <TableColumn fx:id="colTitle"      prefWidth="150" text="Title" />
+                                <TableColumn fx:id="colVisit" text="Visit" />
+                            </columns>
+                        </TableView>
+                    </left>
+
+                    <!-- ========= RIGHT: BAR CHART ========= -->
+                    <center>
+                        <BarChart fx:id="urlBarChart" title="Top Visited Websites"
+                                  legendVisible="false" animated="true"
+                                  prefHeight="400" minHeight="300" BorderPane.alignment="CENTER">
+
+                            <xAxis>
+                                <CategoryAxis label="Website"/>
+                            </xAxis>
+
+                            <yAxis>
+                                <NumberAxis label="Visit Count"/>
+                            </yAxis>
+                        </BarChart>
+                    </center>
+
+                </BorderPane>
+            </Tab>
+
+            <Tab fx:id="tabListMessageUserWithChatBot" text="📎Message User With ChatBot">
+                <BorderPane fx:id="bpChatManager" style="-fx-padding: 10;" prefHeight="600">
+
+                    <!-- =================== CENTER WRAPPER =================== -->
+                    <!-- Dùng SplitPane để chia layout theo tỷ lệ có thể điều chỉnh -->
+                    <center>
+                        <SplitPane dividerPositions="0.2,0.45" style="-fx-padding: 0;">
+
+                            <!-- ============= LEFT: USER LIST (20%) ============= -->
+                            <VBox spacing="10"
+                                  style="-fx-padding: 10; -fx-background-color: #1e1e1e;">
+
+                                <Label text="Users"
+                                       style="-fx-text-fill: white; -fx-font-size: 16; -fx-font-weight: bold;" />
+
+                                <ScrollPane fitToWidth="true" style="-fx-background-color: transparent;">
+                                    <content>
+                                        <VBox fx:id="vboxUsers" spacing="8" style="-fx-padding:5;" />
+                                    </content>
+                                </ScrollPane>
+                            </VBox>
+
+                            <!-- ============= CENTER: CONVERSATION LIST (25%) ============= -->
+                            <VBox spacing="10"
+                                  style="-fx-padding: 10; -fx-background-color: #282828;">
+
+                                <Label text="Conversations"
+                                       style="-fx-text-fill: white; -fx-font-size: 16; -fx-font-weight: bold;" />
+
+                                <ScrollPane fitToWidth="true" style="-fx-background-color: transparent;">
+                                    <content>
+                                        <VBox fx:id="vboxConversations" spacing="8" style="-fx-padding:5;" />
+                                    </content>
+                                </ScrollPane>
+                            </VBox>
+
+                            <!-- ============= RIGHT: MESSAGE VIEWER (55%) ============= -->
+                            <VBox spacing="10"
+                                  style="-fx-padding: 10; -fx-background-color: #303030;">
+
+                                <Label text="Messages"
+                                       style="-fx-text-fill: white; -fx-font-size: 16; -fx-font-weight: bold;" />
+
+                                <ScrollPane fitToWidth="true" fitToHeight="true"
+                                            style="-fx-background-color: transparent;">
+                                    <content>
+                                        <VBox fx:id="vboxMessages" spacing="10" style="-fx-padding:5;" />
+                                    </content>
+                                </ScrollPane>
+
+                            </VBox>
+
+                        </SplitPane>
+                    </center>
+
+                </BorderPane>
+            </Tab>
+
+            <Tab fx:id="tabMessageFeedback" text="💬 Feedback">
+                <AnchorPane prefHeight="600" prefWidth="900" style="-fx-padding: 10;">
+
+                    <!-- Dùng SplitPane để chia layout -->
+                    <SplitPane fx:id="splitPane" prefWidth="1000" prefHeight="580" AnchorPane.topAnchor="0" AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0">
+
+                        <!-- ========== LEFT: Table Feedback (Resizable) ========== -->
+                        <items>
+                            <VBox spacing="10" style="-fx-padding: 10; -fx-background-color: #1e1e1e;" prefWidth="500">
+                                <Label text="User Feedback"
+                                       style="-fx-text-fill: white; -fx-font-size: 16; -fx-font-weight: bold;" />
+
+                                <TableView fx:id="tblFeedback" prefWidth="480" prefHeight="550">
+                                    <columns>
+                                        <TableColumn fx:id="colId" text="ID" prefWidth="50"/>
+                                        <TableColumn fx:id="colUsernameFB" text="User" prefWidth="120"/>
+                                        <TableColumn fx:id="colFeedback" text="Feedback" prefWidth="80"/>
+                                        <TableColumn fx:id="colComment" text="Comment" prefWidth="150"/>
+                                        <TableColumn fx:id="colCreatedAt" text="Created At" prefWidth="120"/>
+                                    </columns>
+                                </TableView>
+                            </VBox>
+
+                            <!-- ========== RIGHT: PieChart Feedback Statistics ========== -->
+                            <VBox spacing="10" style="-fx-padding: 10; -fx-background-color: #282828;" prefWidth="400">
+                                <Label text="Feedback Statistics"
+                                       style="-fx-text-fill: white; -fx-font-size: 16; -fx-font-weight: bold;" />
+
+                                <PieChart fx:id="feedbackPieChart"
+                                          legendVisible="true"
+                                          labelLineLength="10"
+                                          startAngle="90"
+                                          style="-fx-font-size: 14;"
+                                          prefHeight="550"
+                                          prefWidth="380"/>
+                            </VBox>
+                        </items>
+                    </SplitPane>
+                </AnchorPane>
+            </Tab>
+
+
+        </TabPane>
+    </center>
+
+</BorderPane>

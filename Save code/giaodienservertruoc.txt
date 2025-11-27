@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="323.0" styleClass="to_top" stylesheets="@../CSS/dasboardMiniMark.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.prjbrowser.server.ServerController">
+    <children>
+        <Label alignment="CENTER" prefHeight="56.0" prefWidth="323.0" text="Server" textFill="WHITE">
+            <font>
+                <Font size="34.0" />
+            </font>
+        </Label>
+        <ScrollPane layoutX="7.0" layoutY="63.0" prefHeight="318.0" prefWidth="310.0">
+            <content>
+                <VBox fx:id="Server_Vbox" prefHeight="315.0" prefWidth="302.0" />
+            </content>
+        </ScrollPane>
+    </children>
+</AnchorPane>
+
+
+
+package org.example.prjbrowser.server;
+
+import javafx.application.Platform;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.Label;
+import javafx.scene.layout.VBox;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+
+public class ServerController implements Initializable {
+    @FXML
+    private VBox Server_Vbox;
+
+    private ServerSocket serverSocket;
+    private final List<ClientHandler> clientHandlers = new ArrayList<>();
+
+    private final int PORT = 12345; // cổng server
+
+    /**
+     * Thêm log vào UI
+     */
+    public void addLog(String msg) {
+        Platform.runLater(() -> {
+            Label label = new Label(msg);
+            Server_Vbox.getChildren().add(label);
+        });
+    }
+
+    /**
+     * Khởi chạy server trong 1 thread riêng
+     */
+    private void startServer() {
+        new Thread(() -> {
+            try {
+                serverSocket = new ServerSocket(PORT);
+                InetAddress ip = InetAddress.getByName("172.20.10.1");
+                addLog("IP:"+ ip);
+                addLog("✅ Server đã khởi động tại cổng " + PORT);
+
+                while (!serverSocket.isClosed()) {
+                    Socket socket = serverSocket.accept();
+//                    addLog("🔗 Kết nối mới từ: " + socket.getInetAddress());
+
+                    ClientHandler handler = new ClientHandler(socket, this);
+                    clientHandlers.add(handler);
+
+                    Thread thread = new Thread(handler);
+                    thread.start();
+                }
+            } catch (IOException e) {
+                addLog("❌ Lỗi server: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    /**
+     * Khi giao diện server.fxml load xong thì khởi động server
+     */
+    @Override
+    public void initialize(URL url, ResourceBundle resourceBundle) {
+        startServer();
+    }
+}

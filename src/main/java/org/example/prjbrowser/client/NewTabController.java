@@ -7,6 +7,8 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.concurrent.Worker;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -607,8 +609,8 @@ public class NewTabController implements Initializable {
     }
 
 //    =======================Xem lịch sử===============
+    private ObservableList<HistoryItem> historyData = FXCollections.observableArrayList();
     public void list_History() {
-        // 1️⃣ Kiểm tra đăng nhập
         boolean notLoggedIn = currentId == null
                 || currentUsername == null
                 || currentFullname == null
@@ -620,46 +622,48 @@ public class NewTabController implements Initializable {
             return;
         }
 
-        // 2️⃣ Hiển thị giao diện lịch sử
         atHome = false;
         mainBackground.setVisible(false);
         historyBrowser.setVisible(true);
         webView.setVisible(false);
 
-        // Hiệu ứng đóng slide menu
         TranslateTransition tt = new TranslateTransition(Duration.millis(300), slideMenu);
         tt.setToX(getScreenWidth());
         tt.setOnFinished(e -> overlay.setVisible(false));
         tt.play();
         isMenuOpen = false;
 
-        // 3️⃣ Gửi request lấy lịch sử
         new Thread(() -> {
             try {
-                // Tạo message gửi lên server
                 Message req = new Message();
                 req.put("action", "show_history_user");
                 req.put("user_id", currentId);
 
-                // Gửi yêu cầu và nhận phản hồi
                 Message res = sendRequest(req);
 
-                // Xử lý phản hồi
                 if (res != null && "success".equals(res.get("status"))) {
+
                     List<Map<String, String>> data = (List<Map<String, String>>) res.get("data");
 
                     Platform.runLater(() -> {
-                        ObservableList<HistoryItem> historyData = FXCollections.observableArrayList();
+                        historyData.clear();
+
                         for (Map<String, String> row : data) {
                             int id = Integer.parseInt(row.get("id"));
-                            historyData.add(new HistoryItem(id, row.get("url"), row.get("visit_time")));
+                            historyData.add(
+                                    new HistoryItem(id, row.get("url"), row.get("visit_time"))
+                            );
                         }
 
+                        // CHỈ GÁN LẦN ĐẦU VÀO TABLE
                         table_history_browser.setItems(historyData);
+
                         url_col_table.setCellValueFactory(new PropertyValueFactory<>("url"));
                         time_col_table.setCellValueFactory(new PropertyValueFactory<>("visitTime"));
-                    });
 
+                        // 🔥 Quan trọng: mỗi lần load lại lịch sử => enable filter
+                        browserSearch();
+                    });
 
                 } else {
                     String msg = (res != null) ? (String) res.get("message") : "Không có phản hồi từ server";
@@ -678,6 +682,31 @@ public class NewTabController implements Initializable {
             }
         }).start();
     }
+
+    public void browserSearch() {
+
+        FilteredList<HistoryItem> filter = new FilteredList<>(historyData, e -> true);
+
+        searchBrowser.textProperty().addListener((observable, oldValue, newValue) -> {
+
+            filter.setPredicate(item -> {
+                if (newValue == null || newValue.isEmpty()) {
+                    return true;
+                }
+
+                String key = newValue.toLowerCase();
+
+                return item.getUrl().toLowerCase().contains(key)
+                        || item.getVisitTime().toLowerCase().contains(key);
+            });
+        });
+
+        SortedList<HistoryItem> sorted = new SortedList<>(filter);
+        sorted.comparatorProperty().bind(table_history_browser.comparatorProperty());
+
+        table_history_browser.setItems(sorted);
+    }
+
 
     public void deleteSelectedHistory() {
         HistoryItem selected = table_history_browser.getSelectionModel().getSelectedItem();

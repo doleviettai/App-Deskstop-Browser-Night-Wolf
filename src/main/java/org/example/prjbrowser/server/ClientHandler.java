@@ -93,6 +93,9 @@ public class ClientHandler implements Runnable {
                     if (valid) {
                         res.put("status", "success");
                         res.put("message", "Session hợp lệ");
+                        // 🔥 Tăng số client online
+                        server.increaseClientCount();
+                        server.addLog("✔ Valid session from client.");
                     } else {
                         res.put("status", "fail");
                         res.put("message", "Session đã hết hạn hoặc không hợp lệ");

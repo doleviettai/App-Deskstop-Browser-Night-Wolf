@@ -1,0 +1,103 @@
+.avatar-container {
+    -fx-padding: 0;
+    -fx-background-radius: 50%;
+    -fx-background-color: white;   /* viền trắng */
+}
+
+.avatar-container ImageView {
+    -fx-clip-radius: 50%;          /* bo tròn */
+}
+
+/* =============== Style tab and tabpane =============== */
+/* ================= TABPANE BACKGROUND ================= */
+.server-tabpane {
+    -fx-background-color: white;
+}
+
+/* Background vùng chứa tab */
+.server-tabpane .tab-header-area {
+    -fx-background-color: white;
+}
+
+/* ================= TAB KHÔNG ĐƯỢC CHỌN ================= */
+.server-tabpane .tab {
+    -fx-background-color: white;
+    -fx-padding: 8 16 8 16; /* giữ nguyên kích thước mặc định */
+}
+
+.server-tabpane .tab .tab-label {
+    -fx-text-fill: black;
+    -fx-font-weight: bold;
+}
+
+/* Hover cho tab không chọn */
+.server-tabpane .tab:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* ================= TAB ĐƯỢC CHỌN ================= */
+.server-tabpane .tab:selected {
+    -fx-background-color: rgb(242,112,156);
+    -fx-focus-color: transparent;
+    -fx-border-color: transparent !important;
+    -fx-border-width: 0 !important;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.server-tabpane .tab:selected .tab-label {
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+/* ================= CONTENT BACKGROUND ================= */
+.server-tabpane .tab-content-area {
+    -fx-background-color: white;
+    -fx-padding: 0;
+}
+
+/* ================= Biểu đồ đường ================= */
+.chart-series-line {
+    -fx-stroke: #00ccff;
+    -fx-stroke-width: 3px;
+}
+
+.chart-line-symbol {
+    -fx-background-color: white, #00ccff;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 6px;
+}
+
+/*========== Conversation button selected================ */
+.selected-conversation {
+    -fx-background-color: #455a64;
+    -fx-text-fill: white;
+}
+
+/* User & Bot bubble */
+.chat-bubble {
+    -fx-padding: 10 14;
+    -fx-background-radius: 14;
+    -fx-wrap-text: true;
+    -fx-font-size: 14;
+    -fx-max-width: 350;
+}
+
+.user-bubble {
+    -fx-background-color: #4caf50;
+    -fx-text-fill: white;
+}
+
+.bot-bubble {
+    -fx-background-color: #2196F3;
+    -fx-text-fill: white;
+}
+
+.avatar {
+    -fx-fit-width: 32;
+    -fx-fit-height: 32;
+    -fx-background-radius: 50%;
+}
+
+
+
