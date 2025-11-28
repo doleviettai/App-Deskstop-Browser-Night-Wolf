@@ -2,7 +2,6 @@ package org.example.prjbrowser.server;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import io.github.cdimascio.dotenv.Dotenv;
 import org.example.prjbrowser.common.Message;
 import org.example.prjbrowser.dao.SessionsDAO;
 import org.example.prjbrowser.model.*;
@@ -1375,17 +1374,10 @@ public class ClientHandler implements Runnable {
     private String callGeminiAPI(String userMessage) throws Exception {
 //        String apiKey = "AIzaSyAQeRX9PMuyIH2OxHlET_VcdtTtdf46tsg";
 //        String apiKey = "AIzaSyBbpyqGOBGMVH5nF6LhcBPwp4UWT01MP7I";
+        String apiKey = "AIzaSyDyJb2ezYOJrIrK9FU1aZYa6JCWtxlubjU";
 //        String apiEndpoint =
 //                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 //        String apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
-        // Load API key từ file .env
-        Dotenv dotenv = Dotenv.load();
-        String apiKey = dotenv.get("GEMINI_API_KEY");
-
-        if (apiKey == null || apiKey.isEmpty()) {
-            return "❌ Lỗi: Không tìm thấy GEMINI_API_KEY trong file .env";
-        }
-
         String apiEndpoint =
                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 

@@ -10,7 +10,6 @@ module org.example.prjbrowser {
     requires org.fxmisc.richtext;
     requires jdk.jsobject;
     requires com.google.gson;
-    requires io.github.cdimascio.dotenv.java;
 
 
     opens org.example.prjbrowser to javafx.fxml;
