@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import org.example.prjbrowser.common.Message;
 import org.example.prjbrowser.dao.SessionsDAO;
 import org.example.prjbrowser.model.*;
+import org.example.prjbrowser.util.FileUtils;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -1268,63 +1269,110 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleSendMessage(Connection conn,Message request, Message response) throws SQLException {
+
         int conversationId = (int) request.getOrDefault("conversationId", -1);
-        String content = (String) request.getOrDefault("content", "");
-        if (conversationId == -1 || content.isEmpty()) {
+        String content = (String) request.getOrDefault("content", null);
+
+        String fileName = (String) request.getOrDefault("fileName", null);
+        String fileType = (String) request.getOrDefault("fileType", null);
+        Integer fileSize = (Integer) request.getOrDefault("fileSize", 0);
+        byte[] fileData = (byte[]) request.getOrDefault("fileData", null);
+
+        boolean isText = content != null && !content.isEmpty();
+        boolean isFile = fileData != null;
+
+        if (conversationId == -1 || (!isText && !isFile)) {
             response.put("status", "error");
-            response.put("message", "Invalid conversation ID or empty content");
+            response.put("message", "Invalid message: must include text or file.");
             return;
         }
 
         try {
-            // 1️⃣ Lưu tin nhắn user
+
             int userMessageId;
+
+            // 1️⃣ Lưu tin nhắn user vào DB
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO messages(conversation_id, sender, content) VALUES(?, 'user', ?)",
+                    "INSERT INTO messages(conversation_id, sender, content, file_name, file_path, file_type, file_size) " +
+                            "VALUES(?, 'user', ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS)) {
+
                 ps.setInt(1, conversationId);
-                ps.setString(2, content);
+                ps.setString(2, isText ? content : "User sent a file");
+                ps.setString(3, fileName);
+                ps.setBytes(4, fileData);
+                ps.setString(5, fileType);
+                ps.setInt(6, fileSize);
+
                 ps.executeUpdate();
                 ResultSet keys = ps.getGeneratedKeys();
                 userMessageId = keys.next() ? keys.getInt(1) : 0;
             }
 
-            // 2️⃣ Lấy lịch sử tin nhắn gần nhất (ví dụ 10 tin)
+            // 2️⃣ Lấy lịch sử cho AI
             List<Messages> history = new ArrayList<>();
             try (PreparedStatement psHist = conn.prepareStatement(
                     "SELECT sender, content FROM messages WHERE conversation_id=? ORDER BY id ASC")) {
                 psHist.setInt(1, conversationId);
                 ResultSet rs = psHist.executeQuery();
                 while (rs.next()) {
-                    history.add(new Messages(0, conversationId,
+                    history.add(new Messages(
+                            0,
+                            conversationId,
                             rs.getString("sender"),
-                            rs.getString("content")));
+                            rs.getString("content")
+                    ));
                 }
             }
 
             // 3️⃣ Chuẩn bị context cho AI
-            StringBuilder context = new StringBuilder();
+            StringBuilder ctx = new StringBuilder();
             for (Messages msg : history) {
-                context.append(msg.getSender().equals("user") ? "User: " : "AI: ")
+                ctx.append(msg.getSender().equals("user") ? "User: " : "AI: ")
                         .append(msg.getContent())
                         .append("\n");
             }
-            context.append("User: ").append(content); // tin nhắn mới
 
-            // 4️⃣ Gọi AI và lưu tin nhắn AI
-            String aiContent = getAIResponse(context.toString(), conversationId, conn);
+            // Nếu user gửi file, đọc nội dung file
+            if (isFile) {
+                try {
+                    String fileText = FileUtils.extractTextFromFile(fileData, fileName);
+                    ctx.append("User sent a file: ").append(fileName).append("\n");
+                    ctx.append("File content:\n").append(fileText).append("\n");
+                } catch (IOException e) {
+                    ctx.append("User sent a file: ").append(fileName).append("\n");
+                    ctx.append("Could not read file content. Error: ").append(e.getMessage()).append("\n");
+                }
+            } else {
+                ctx.append("User: ").append(content).append("\n");
+            }
 
-            // 5️⃣ Trả về client
-            Messages userMsg = new Messages(userMessageId, conversationId, "user", content);
-            Messages aiMsg = new Messages(0, conversationId, "ai", aiContent);
+            // Thêm prompt hướng dẫn AI
+            ctx.append("\nPlease summarize or answer user's question based on the above content.");
+
+            // 4️⃣ Lấy AI trả lời + lưu vào DB
+            String aiReply = getAIResponse(ctx.toString(), conversationId, conn);
+
+            // 5️⃣ Chuẩn bị dữ liệu trả về client
+            Messages userMsg = new Messages(
+                    userMessageId,
+                    conversationId,
+                    "user",
+                    content,
+                    fileName,
+                    fileData,
+                    fileType,
+                    fileSize
+            );
+
+            Messages aiMsg = new Messages(0, conversationId, "ai", aiReply);
 
             response.put("status", "ok");
             response.put("action", "send_message");
             response.put("userMessage", userMsg);
             response.put("aiMessage", aiMsg);
-        }catch (Exception e) {
-            response.put("status", "error");
-            response.put("message", "Server error: " + e.getMessage());
+        } finally {
+
         }
     }
 
@@ -1339,43 +1387,19 @@ public class ClientHandler implements Runnable {
     }
 
 
-    private void handleOpenConversation(Connection conn,Message request, Message response) throws SQLException {
-        int conversationId = (int) request.getOrDefault("conversationId", -1);
-        if (conversationId == -1) {
-            response.put("status", "error");
-            response.put("message", "Invalid conversation ID");
-            return;
-        }
-
-        try (
-             PreparedStatement ps = conn.prepareStatement(
-                     "SELECT id, user_id, title FROM conversations WHERE id=?")) {
-
+    private void saveAIMessage(String content, String aiResponse, int conversationId, Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO messages(conversation_id, sender, content) VALUES(?, 'ai', ?)")) {
             ps.setInt(1, conversationId);
-            ResultSet rs = ps.executeQuery();
-
-            if (rs.next()) {
-                Conversation conv = new Conversation(
-                        rs.getInt("id"),
-                        rs.getInt("user_id"),
-                        rs.getString("title")
-                );
-                response.put("status", "ok");
-                response.put("action", "open_conversation");
-                response.put("conversation", conv);
-            } else {
-                response.put("status", "error");
-                response.put("message", "Conversation not found");
-            }
+            ps.setString(2, aiResponse);
+            ps.executeUpdate();
         }
     }
 
-
     private String callGeminiAPI(String userMessage) throws Exception {
-//        String apiKey = "AIzaSyAQeRX9PMuyIH2OxHlET_VcdtTtdf46tsg";
-//        String apiKey = "AIzaSyBbpyqGOBGMVH5nF6LhcBPwp4UWT01MP7I";
-//        String apiEndpoint =
-//                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+        String apiKey = "AIzaSyAQeRX9PMuyIH2OxHlET_VcdtTtdf46tsg";
+        String apiEndpoint =
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 //        String apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
 
         // ✅ Chuẩn JSON body
@@ -1431,16 +1455,36 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void saveAIMessage(String userMessage, String aiMessage, int conversationId, Connection conn) throws SQLException {
-        // Lưu tin nhắn AI
-        try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO messages(conversation_id, sender, content) VALUES(?, 'ai', ?)")) {
+    private void handleOpenConversation(Connection conn,Message request, Message response) throws SQLException {
+        int conversationId = (int) request.getOrDefault("conversationId", -1);
+        if (conversationId == -1) {
+            response.put("status", "error");
+            response.put("message", "Invalid conversation ID");
+            return;
+        }
+
+        try (
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, user_id, title FROM conversations WHERE id=?")) {
+
             ps.setInt(1, conversationId);
-            ps.setString(2, aiMessage);
-            ps.executeUpdate();
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                Conversation conv = new Conversation(
+                        rs.getInt("id"),
+                        rs.getInt("user_id"),
+                        rs.getString("title")
+                );
+                response.put("status", "ok");
+                response.put("action", "open_conversation");
+                response.put("conversation", conv);
+            } else {
+                response.put("status", "error");
+                response.put("message", "Conversation not found");
+            }
         }
     }
-
 
 
     private void saveQuestionAndAnswer(Connection conn,String question, String answer) throws SQLException {

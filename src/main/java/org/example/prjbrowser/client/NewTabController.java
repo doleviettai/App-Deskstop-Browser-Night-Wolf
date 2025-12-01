@@ -184,6 +184,8 @@ public class NewTabController implements Initializable {
     @FXML private VBox chatVBox;
     @FXML private TextField messageField;
     @FXML private Button sendButton;
+    @FXML private Button chooseFileButton;
+    private File selectedFile = null; // file đang được chọn
 
     @FXML private StackPane menuContainer;
     @FXML private StackPane centerContainer;
@@ -2404,31 +2406,80 @@ public class NewTabController implements Initializable {
         }).start();
     }
 
-    /** Gửi tin nhắn và nhận AI response, hiển thị cả hai */
+    @FXML
+    private void handleChooseFile() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Chọn file để gửi");
+        // Có thể thêm filter nếu muốn
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("All Files", "*.*")
+        );
+
+        File file = fileChooser.showOpenDialog(messageField.getScene().getWindow());
+        if (file != null) {
+            selectedFile = file;
+            messageField.setText(file.getName()); // hiển thị tên file lên textField
+        }
+    }
+
     @FXML
     private void handleSendMessage() {
         if (messageField == null || socket == null || socket.isClosed()) return;
+        if (currentConversationId == -1) return;
 
         String text = messageField.getText().trim();
-        if (text.isEmpty() || currentConversationId == -1) return;
+        if ((text.isEmpty() && selectedFile == null)) return;
 
-        // --- User bubble ---
-        Messages userMsg = new Messages(0, currentConversationId, "user", text);
-        addChatBubble(userMsg, true); // TextArea cho user, không thêm "user:"
+        // --- Tạo message user ---
+        Messages userMsg;
+        byte[] fileData = null;
+        String fileName;
+        String fileType;
+        int fileSize;
+
+        if (selectedFile != null) {
+            fileName = selectedFile.getName();
+            fileType = URLConnection.guessContentTypeFromName(fileName);
+            fileSize = (int) selectedFile.length();
+            try {
+                fileData = Files.readAllBytes(selectedFile.toPath());
+            } catch (IOException e) {
+                showAlert("Error", "Không đọc được file: " + e.getMessage());
+                return;
+            }
+            userMsg = new Messages(0, currentConversationId, "user", null, fileName, fileData, fileType, fileSize);
+        } else {
+            fileSize = 0;
+            fileType = null;
+            fileName = null;
+            userMsg = new Messages(0, currentConversationId, "user", text);
+        }
+
+        addChatBubble(userMsg, true); // thêm bubble user
 
         // --- AI bubble: GIF "đang suy nghĩ" ---
         Messages aiPendingMsg = new Messages(0, currentConversationId, "ai", "");
         HBox aiContainer = addChatBubbleWithGif(aiPendingMsg, false, "/Image/Running dog.gif");
 
         messageField.clear();
+        selectedFile = null; // reset file
         if (chatScrollPane != null) chatScrollPane.setVvalue(1.0);
 
+        byte[] finalFileData = fileData;
         new Thread(() -> {
             try {
                 Message request = new Message();
                 request.put("action", "send_message");
                 request.put("conversationId", currentConversationId);
-                request.put("content", text);
+
+                if (finalFileData != null) {
+                    request.put("fileName", fileName);
+                    request.put("fileType", fileType);
+                    request.put("fileSize", fileSize);
+                    request.put("fileData", finalFileData);
+                } else {
+                    request.put("content", text);
+                }
 
                 Message response = sendRequest(request);
 
@@ -2437,16 +2488,9 @@ public class NewTabController implements Initializable {
                         Messages aiMsg = (Messages) response.get("aiMessage");
                         if (aiMsg != null) {
                             VBox containerVBox = (VBox) aiContainer.getChildren().get(0);
-                            containerVBox.getChildren().clear(); // Xóa GIF
-
-                            // --- Loại bỏ prefix "AI: " nếu có ---
-                            String aiContent = aiMsg.getContent();
-                            if (aiContent.startsWith("AI: ")) {
-                                aiContent = aiContent.substring(4).trim();
-                            }
-
-                            // --- AI bubble: Label auto wrap, skyblue, full text ---
-                            Label aiLabel = new Label(aiContent);
+                            containerVBox.getChildren().clear(); // xóa GIF
+                            // --- hiển thị AI text bình thường ---
+                            Label aiLabel = new Label(aiMsg.getContent());
                             aiLabel.setWrapText(true);
                             aiLabel.setMaxWidth(400);
                             aiLabel.setStyle(
@@ -2456,56 +2500,8 @@ public class NewTabController implements Initializable {
                                             "-fx-text-fill: black;" +
                                             "-fx-padding: 10;"
                             );
-
-                            // --- Tính chiều cao tự động dựa trên nội dung ---
-                            Text tempText = new Text(aiContent);
-                            tempText.setFont(Font.font(14));
-                            tempText.setWrappingWidth(380); // padding + border
-                            double textHeight = tempText.getLayoutBounds().getHeight() + 20;
-                            aiLabel.setMinHeight(textHeight);
-                            aiLabel.setPrefHeight(textHeight);
-                            aiLabel.setMaxHeight(textHeight);
-
                             containerVBox.getChildren().add(aiLabel);
 
-                            // --- Feedback emojis ---
-                            HBox reactionHBox = new HBox(5);
-                            reactionHBox.setAlignment(Pos.CENTER_LEFT);
-                            String[] emojis = {"👍", "❤️", "😆", "😮", "😢", "😡"};
-                            String[] feedbackKeys = {"like","love","haha","wow","sad","angry"};
-
-                            for (int i = 0; i < emojis.length; i++) {
-                                String key = feedbackKeys[i];
-                                Button btn = new Button(emojis[i]);
-                                btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;");
-
-                                btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: greenyellow; -fx-font-size: 16px;"));
-                                btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: transparent; -fx-font-size: 16px;"));
-
-                                btn.setOnAction(e -> {
-                                    Node existingInput = null;
-                                    for (Node node : containerVBox.getChildren()) {
-                                        if ("feedbackInput".equals(node.getId())) {
-                                            existingInput = node;
-                                            break;
-                                        }
-                                    }
-
-                                    if (existingInput != null) {
-                                        containerVBox.getChildren().remove(existingInput);
-                                    } else {
-                                        HBox feedbackInput = showFeedbackInput(aiMsg.getId(), key);
-                                        feedbackInput.setId("feedbackInput");
-                                        containerVBox.getChildren().add(feedbackInput);
-                                    }
-                                });
-
-                                reactionHBox.getChildren().add(btn);
-                            }
-
-                            containerVBox.getChildren().add(reactionHBox);
-
-                            // --- Scroll xuống cuối ---
                             if (chatScrollPane != null) {
                                 chatScrollPane.layout();
                                 chatScrollPane.setVvalue(1.0);
@@ -2515,7 +2511,6 @@ public class NewTabController implements Initializable {
                         showAlert("Error", (String) response.getOrDefault("message", "Không gửi được tin nhắn"));
                     }
                 });
-
             } catch (Exception e) {
                 e.printStackTrace();
                 Platform.runLater(() -> showAlert("Error", "Lỗi gửi tin nhắn: " + e.getMessage()));

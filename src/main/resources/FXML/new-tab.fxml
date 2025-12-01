@@ -137,6 +137,8 @@
                                             </VBox>
                                         </ScrollPane>
                                         <HBox spacing="10" style="-fx-padding: 10;">
+                                            <!-- Nút chọn file -->
+                                            <Button fx:id="chooseFileButton" onAction="#handleChooseFile" text="📂"/>
                                             <TextField fx:id="messageField" promptText="Nhập tin nhắn..." HBox.hgrow="ALWAYS"/>
                                             <Button fx:id="sendButton" onAction="#handleSendMessage" text="Gửi"/>
                                         </HBox>

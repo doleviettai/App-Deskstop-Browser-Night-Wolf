@@ -10,6 +10,8 @@ module org.example.prjbrowser {
     requires org.fxmisc.richtext;
     requires jdk.jsobject;
     requires com.google.gson;
+    requires org.apache.pdfbox;
+    requires org.apache.poi.ooxml;
 
 
     opens org.example.prjbrowser to javafx.fxml;
